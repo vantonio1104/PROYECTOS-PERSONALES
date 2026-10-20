@@ -1,7 +1,8 @@
-# English Tutor — Fase 3
+# English Tutor — Fase 4
 
 - Fase 2: tarjetas de corrección bajo tus mensajes + todo se guarda en Room (`tutor.db`).
 - Fase 3: escenarios de roleplay (charla libre, entrevista, restaurante, soporte técnico) + repaso de tus errores frecuentes al inicio de cada sesión.
+- Fase 4: voz Orpheus de Groq (opcional, **de pago**) + contador "Hoy X/60 min".
 
 Flujo: **mantener presionado 🎙️ → Whisper (Groq) → LLM (Groq) → TextToSpeech**, con el chat en pantalla.
 
@@ -29,7 +30,9 @@ app/src/main/java/com/englishtutor/app/
 2. Crea tu key en https://console.groq.com/keys
 3. En `local.properties` (raíz del proyecto) agrega: `GROQ_API_KEY=gsk_...`
    (ver `local.properties.example`). Este archivo está en `.gitignore`.
-4. *Build → Rebuild Project* (para que se regenere `BuildConfig.GROQ_API_KEY`).
+4. (Opcional, de pago) Para la voz Orpheus agrega `GROQ_TTS_VOICE=troy` (o autumn, diana, hannah, austin, daniel).
+   En la consola de Groq puede que tengas que aceptar los términos del modelo `canopylabs/orpheus-v1-english`.
+5. *Build → Rebuild Project* (para que se regenere `BuildConfig.GROQ_API_KEY`).
 
 ## Cómo probar cada parte
 Filtra Logcat por el tag **`Tutor`** y por **`okhttp`**.
@@ -47,6 +50,10 @@ Filtra Logcat por el tag **`Tutor`** y por **`okhttp`**.
 | 9. Room | Hablar 2-3 turnos y abrir *View → Tool Windows → App Inspection → Database Inspector* | Base `tutor.db` con filas en `sessions`, `messages`, `corrections` y `vocab`. Ciérrala desde recientes y ábrela: se crea una sesión nueva y los datos anteriores siguen ahí. |
 | 10. Escenarios | En la pantalla inicial elige "Restaurante" y di "Hi, can I see the menu?" | El tutor responde como mesero. El título cambia a "Restaurante". En Database Inspector, `sessions.scenario = restaurant`. |
 | 11. Nueva sesión | Tocar **Nueva** arriba a la derecha | Se limpia el chat y vuelven los escenarios. Aparece "Repaso: tus errores frecuentes" con tarjetas de sesiones anteriores (las más repetidas primero). |
+| 12. Contador | Hablar unos turnos | Arriba a la derecha "Hoy X/60 min" sube después de cada turno (cuenta desde tu primer turno de la sesión). |
+| 13. Orpheus | Poner `GROQ_TTS_VOICE=troy`, *Rebuild* y hablar | La voz suena más natural. Logcat: `POST …/audio/speech 200`. Si falla (sin saldo, términos sin aceptar), Logcat `Orpheus falló…` y habla la voz del sistema. |
+
+Test unitario (corte del texto en trozos de ≤200 caracteres): `./gradlew test`.
 
 ### Emulador
 - Micrófono: en el emulador, `⋮ → Microphone → "Virtual microphone uses host audio input"` (se desactiva cada vez que reinicias el emulador).

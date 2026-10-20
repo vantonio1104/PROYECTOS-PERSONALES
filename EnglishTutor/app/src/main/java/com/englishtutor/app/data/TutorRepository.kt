@@ -8,7 +8,10 @@ import com.englishtutor.app.data.remote.ApiMessage
 import com.englishtutor.app.data.remote.ChatRequest
 import com.englishtutor.app.data.remote.GroqApi
 import com.englishtutor.app.data.remote.GroqClient
+import com.englishtutor.app.data.remote.SpeechRequest
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -16,6 +19,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
 import java.io.File
 import java.io.IOException
+import java.time.LocalDate
+import java.time.ZoneId
 
 /** Error con un mensaje listo para mostrar al usuario (en español). */
 class TutorException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -55,6 +60,17 @@ class TutorRepository(
         parseReply(content)
     }
 
+    /** Texto → audios .wav con Orpheus (máx. 200 caracteres por petición, así que va por trozos). */
+    suspend fun speech(text: String, voice: String): List<ByteArray> =
+        splitForTts(text).map { chunk ->
+            withRetry {
+                // bytes() lee la red: va en IO, no en el hilo principal
+                withContext(Dispatchers.IO) {
+                    api.speech(SpeechRequest(TTS_MODEL, voice, chunk)).use { it.bytes() }
+                }
+            }
+        }
+
     // La sesión se crea con el primer turno (sin sesiones vacías); "Nueva" la reinicia.
     private var sessionId: Long? = null
 
@@ -82,6 +98,16 @@ class TutorRepository(
         } catch (e: SQLException) {
             Log.e(TAG, "No se pudo leer el repaso", e)
             emptyList()
+        }
+
+    /** Minutos practicados hoy (suma de las sesiones que empezaron hoy). */
+    suspend fun practicedTodayMinutes(): Long =
+        try {
+            val since = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            dao.practicedSince(since) / 60_000
+        } catch (e: SQLException) {
+            Log.e(TAG, "No se pudo leer el tiempo de hoy", e)
+            0
         }
 
     /** Si el JSON viene mal formado, usamos el texto crudo como reply (sin crashear). */
@@ -127,6 +153,30 @@ class TutorRepository(
         const val TAG = "Tutor"
         const val WHISPER_MODEL = "whisper-large-v3-turbo"
         const val DEFAULT_LLM_MODEL = "llama-3.3-70b-versatile"
+        const val TTS_MODEL = "canopylabs/orpheus-v1-english"
+        private const val TTS_MAX_CHARS = 200
+
+        /** Junta oraciones en trozos de hasta [max] caracteres; una oración más larga se corta en un espacio. */
+        fun splitForTts(text: String, max: Int = TTS_MAX_CHARS): List<String> {
+            val chunks = mutableListOf<String>()
+            var current = ""
+            for (sentence in text.trim().split(Regex("(?<=[.!?])\\s+"))) {
+                var s = sentence
+                while (s.length > max) {
+                    val cut = s.lastIndexOf(' ', max).takeIf { it > 0 } ?: max
+                    if (current.isNotEmpty()) chunks += current.also { current = "" }
+                    chunks += s.substring(0, cut)
+                    s = s.substring(cut).trim()
+                }
+                current = when {
+                    current.isEmpty() -> s
+                    current.length + 1 + s.length <= max -> "$current $s"
+                    else -> s.also { chunks += current }
+                }
+            }
+            if (current.isNotEmpty()) chunks += current
+            return chunks
+        }
         private const val MAX_HISTORY = 20
         private const val MAX_RETRIES = 2
         private val TEXT = "text/plain".toMediaType()

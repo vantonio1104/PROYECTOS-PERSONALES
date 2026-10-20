@@ -76,6 +76,8 @@ fun ConversationScreen(vm: ConversationViewModel = viewModel(factory = Conversat
             TopAppBar(
                 title = { Text(if (state.messages.isEmpty()) "English Tutor" else state.scenario.label) },
                 actions = {
+                    // Meta de CLAUDE.md: 1 hora al día
+                    Text("Hoy ${state.todayMinutes}/60 min", style = MaterialTheme.typography.labelLarge)
                     if (state.messages.isNotEmpty()) TextButton(onClick = vm::newConversation) { Text("Nueva") }
                 },
             )

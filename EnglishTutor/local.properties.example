@@ -1,3 +1,6 @@
 # Copia este archivo como "local.properties" y pon tu key de https://console.groq.com/keys
 # (Android Studio agrega solo la línea sdk.dir)
 GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxx
+# Opcional (Fase 4, DE PAGO ~US$22 por millón de caracteres): voz Orpheus de Groq.
+# Voces: autumn, diana, hannah, austin, daniel, troy. Déjalo vacío o bórralo para usar la voz del sistema.
+# GROQ_TTS_VOICE=troy

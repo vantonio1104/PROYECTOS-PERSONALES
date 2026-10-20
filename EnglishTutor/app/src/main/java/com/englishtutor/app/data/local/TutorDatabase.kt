@@ -67,6 +67,10 @@ abstract class TutorDao {
     @Query("UPDATE sessions SET endedAt = :endedAt WHERE id = :sessionId")
     abstract suspend fun updateSessionEnd(sessionId: Long, endedAt: Long)
 
+    // shortcut: cuenta de inicio a último turno de cada sesión (no cuenta el primer turno ni descuenta pausas largas).
+    @Query("SELECT COALESCE(SUM(endedAt - startedAt), 0) FROM sessions WHERE startedAt >= :since")
+    abstract suspend fun practicedSince(since: Long): Long
+
     /** Errores más repetidos (agrupados por la forma correcta); si empatan, los más recientes. */
     @Query(
         "SELECT original, better, explanation FROM corrections " +

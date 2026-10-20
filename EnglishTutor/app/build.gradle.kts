@@ -26,6 +26,8 @@ android {
         versionName = "0.1"
 
         buildConfigField("String", "GROQ_API_KEY", "\"${localProps.getProperty("GROQ_API_KEY", "")}\"")
+        // Voz Orpheus (de pago). Vacío = voz del sistema (gratis).
+        buildConfigField("String", "GROQ_TTS_VOICE", "\"${localProps.getProperty("GROQ_TTS_VOICE", "")}\"")
     }
 
     buildTypes {
@@ -68,4 +70,6 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+
+    testImplementation(libs.junit)
 }

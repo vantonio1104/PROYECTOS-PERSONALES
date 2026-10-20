@@ -1,10 +1,12 @@
 package com.englishtutor.app.audio
 
 import android.content.Context
+import android.media.MediaPlayer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.io.File
 import java.util.Locale
 import kotlin.coroutines.resume
 
@@ -13,6 +15,8 @@ class Speaker(context: Context) : TextToSpeech.OnInitListener {
 
     @Volatile private var ready = false
     @Volatile private var onDone: (() -> Unit)? = null
+    private val cacheDir = context.cacheDir
+    private var player: MediaPlayer? = null // reproduce el audio de Orpheus
 
     private val tts = TextToSpeech(context.applicationContext, this)
 
@@ -46,8 +50,27 @@ class Speaker(context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
+    /** Reproduce un .wav (voz Orpheus) y suspende hasta que termina. */
+    suspend fun playWav(bytes: ByteArray) {
+        val file = File(cacheDir, "reply.wav").apply { writeBytes(bytes) }
+        val mp = MediaPlayer().apply { setDataSource(file.absolutePath); prepare() }
+        player = mp
+        try {
+            suspendCancellableCoroutine { cont ->
+                onDone = { if (cont.isActive) cont.resume(Unit) }
+                mp.setOnCompletionListener { finish() }
+                mp.setOnErrorListener { _, _, _ -> finish(); true }
+                mp.start()
+            }
+        } finally {
+            player = null
+            mp.release()
+        }
+    }
+
     fun stop() {
         tts.stop()
+        player?.stop()
         finish()
     }
 

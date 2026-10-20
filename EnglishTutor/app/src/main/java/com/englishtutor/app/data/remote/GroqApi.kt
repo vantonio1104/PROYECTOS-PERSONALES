@@ -2,6 +2,7 @@ package com.englishtutor.app.data.remote
 
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.Multipart
 import retrofit2.http.POST
@@ -20,4 +21,8 @@ interface GroqApi {
 
     @POST("chat/completions")
     suspend fun chat(@Body request: ChatRequest): ChatResponse
+
+    /** Devuelve el audio .wav en bruto. */
+    @POST("audio/speech")
+    suspend fun speech(@Body request: SpeechRequest): ResponseBody
 }

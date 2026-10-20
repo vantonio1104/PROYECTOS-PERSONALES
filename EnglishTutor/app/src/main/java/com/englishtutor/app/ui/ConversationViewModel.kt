@@ -31,6 +31,7 @@ data class ConversationUiState(
     val error: String? = null,
     val scenario: Scenario = Scenario.FREE,
     val review: List<Correction> = emptyList(), // errores frecuentes para repasar al empezar
+    val todayMinutes: Long = 0,
 )
 
 class ConversationViewModel(
@@ -51,7 +52,7 @@ class ConversationViewModel(
     private var nextId = 0L
 
     init {
-        loadReview()
+        loadFromDb()
     }
 
     /** Solo se puede elegir antes de empezar a hablar (el escenario es de toda la sesión). */
@@ -66,14 +67,31 @@ class ConversationViewModel(
         recorder.stop()
         repository.startNewSession()
         _state.update { it.copy(messages = emptyList(), status = TutorStatus.Idle, error = null) }
-        loadReview()
+        loadFromDb()
     }
 
-    private fun loadReview() {
+    /** Repaso de errores + minutos de hoy. */
+    private fun loadFromDb() {
         viewModelScope.launch {
             val review = repository.frequentErrors()
-            _state.update { it.copy(review = review) }
+            val minutes = repository.practicedTodayMinutes()
+            _state.update { it.copy(review = review, todayMinutes = minutes) }
         }
+    }
+
+    /** Voz Orpheus si está configurada; si falla (o no hay), la voz del sistema. */
+    private suspend fun speakReply(text: String) {
+        val voice = BuildConfig.GROQ_TTS_VOICE
+        if (voice.isNotBlank()) {
+            try {
+                // Se descargan todos los trozos antes de hablar: si uno falla, no se mezclan voces.
+                repository.speech(text, voice).forEach { speaker.playWav(it) }
+                return
+            } catch (e: TutorException) {
+                Log.w(TAG, "Orpheus falló, uso la voz del sistema: ${e.message}", e)
+            }
+        }
+        speaker.speak(text)
     }
 
     /** El usuario presionó el botón del micrófono. */
@@ -128,10 +146,11 @@ class ConversationViewModel(
 
             // Guardar antes de hablar: si interrumpes al tutor, el turno ya quedó guardado.
             repository.saveTurn(userText, reply, _state.value.scenario)
+            loadFromDb()
 
             // 3) Texto → voz
             setStatus(TutorStatus.Speaking)
-            speaker.speak(reply.reply)
+            speakReply(reply.reply)
             setStatus(TutorStatus.Idle)
         } catch (e: TutorException) {
             showError(e.message ?: "Error desconocido")
