@@ -1,6 +1,9 @@
 package com.englishtutor.app.data
 
+import android.database.SQLException
 import android.util.Log
+import com.englishtutor.app.data.local.SessionEntity
+import com.englishtutor.app.data.local.TutorDao
 import com.englishtutor.app.data.remote.ApiMessage
 import com.englishtutor.app.data.remote.ChatRequest
 import com.englishtutor.app.data.remote.GroqApi
@@ -19,6 +22,7 @@ class TutorException(message: String, cause: Throwable? = null) : Exception(mess
 
 class TutorRepository(
     private val api: GroqApi,
+    private val dao: TutorDao,
     private val llmModel: String = DEFAULT_LLM_MODEL,
 ) {
 
@@ -49,6 +53,20 @@ class TutorRepository(
             .choices.firstOrNull()?.message?.content.orEmpty()
         Log.d(TAG, "LLM raw: $content")
         parseReply(content)
+    }
+
+    // Una sesión por cada vez que abres la app; se crea con el primer turno (sin sesiones vacías).
+    private var sessionId: Long? = null
+
+    /** Guarda el turno en Room. Si falla, solo se registra: la conversación sigue. */
+    suspend fun saveTurn(userText: String, reply: TutorReply) {
+        try {
+            val now = System.currentTimeMillis()
+            val id = sessionId ?: dao.insertSession(SessionEntity(startedAt = now, endedAt = now)).also { sessionId = it }
+            dao.saveTurn(id, userText, reply)
+        } catch (e: SQLException) {
+            Log.e(TAG, "No se pudo guardar el turno en Room", e)
+        }
     }
 
     /** Si el JSON viene mal formado, usamos el texto crudo como reply (sin crashear). */

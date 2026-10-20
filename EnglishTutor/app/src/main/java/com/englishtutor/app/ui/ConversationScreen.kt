@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,12 +46,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.englishtutor.app.R
 import com.englishtutor.app.data.ChatMessage
+import com.englishtutor.app.data.Correction
 import com.englishtutor.app.data.Role
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -96,7 +102,7 @@ fun ConversationScreen(vm: ConversationViewModel = viewModel(factory = Conversat
 @Composable
 private fun MessageBubble(msg: ChatMessage) {
     val isUser = msg.role == Role.USER
-    Box(Modifier.fillMaxWidth(), contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = if (isUser) Alignment.End else Alignment.Start) {
         Surface(
             color = if (isUser) MaterialTheme.colorScheme.primaryContainer
             else MaterialTheme.colorScheme.surfaceVariant,
@@ -104,6 +110,36 @@ private fun MessageBubble(msg: ChatMessage) {
             modifier = Modifier.widthIn(max = 300.dp),
         ) {
             Text(msg.text, Modifier.padding(12.dp), style = MaterialTheme.typography.bodyLarge)
+        }
+        msg.corrections.forEach { CorrectionCard(it) }
+    }
+}
+
+/** Tarjeta bajo tu mensaje: cerrada muestra cómo decirlo mejor; al tocarla, lo que dijiste y la explicación. */
+@Composable
+private fun CorrectionCard(c: Correction) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier
+            .padding(top = 4.dp)
+            .widthIn(max = 300.dp)
+            .clickable(onClickLabel = if (expanded) "Ocultar explicación" else "Ver explicación") {
+                expanded = !expanded
+            },
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Text("✏️ ${c.better}", style = MaterialTheme.typography.bodyMedium)
+            if (expanded) {
+                Text(
+                    c.original,
+                    style = MaterialTheme.typography.bodySmall,
+                    textDecoration = TextDecoration.LineThrough,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                Text(c.explanation, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+            }
         }
     }
 }

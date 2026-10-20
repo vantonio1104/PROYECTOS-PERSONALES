@@ -1,4 +1,6 @@
-# English Tutor — Fase 1 (MVP)
+# English Tutor — Fase 2
+
+Fase 2: tarjetas de corrección bajo tus mensajes + todo se guarda en Room (`tutor.db`).
 
 Flujo: **mantener presionado 🎙️ → Whisper (Groq) → LLM (Groq) → TextToSpeech**, con el chat en pantalla.
 
@@ -9,7 +11,8 @@ app/src/main/java/com/englishtutor/app/
 ├── MainActivity.kt             # Arranca Compose
 ├── data/
 │   ├── TutorModels.kt          # TutorReply / Correction / Vocab (contrato JSON) + ChatMessage
-│   ├── TutorRepository.kt      # transcribe(), chat(), system prompt, reintento 429, JSON tolerante
+│   ├── TutorRepository.kt      # transcribe(), chat(), saveTurn(), system prompt, reintento 429, JSON tolerante
+│   ├── local/TutorDatabase.kt  # Room: tablas sessions/messages/corrections/vocab + DAO
 │   └── remote/                 # Retrofit: GroqApi, GroqClient (auth + logging), DTOs
 ├── audio/
 │   ├── AudioRecorder.kt        # MediaRecorder → cache/turn.m4a (AAC 16 kHz mono)
@@ -39,7 +42,8 @@ Filtra Logcat por el tag **`Tutor`** y por **`okhttp`**.
 | 5. LLM | (sigue solo) | "El tutor está pensando…", luego burbuja del tutor. Logcat: `LLM raw: {"reply": …}`. |
 | 6. TTS | (sigue solo) | Se escucha la respuesta en inglés, "Hablando…". Presionar el botón mientras habla lo interrumpe. |
 | 7. Errores | Modo avión y hablar | Banner "Sin conexión…" sin que la app se caiga. Key falsa → "API key inválida". |
-| 8. Correcciones | Decir algo con error ("Yesterday I go to the beach") | Logcat `LLM raw` trae `corrections` con explicación en español (las tarjetas se ven en Fase 2). |
+| 8. Correcciones | Decir algo con error ("Yesterday I go to the beach") | Bajo tu burbuja aparece una tarjeta "✏️ Yesterday I went to the beach". Tócala: se ve lo que dijiste (tachado) y la explicación en español. |
+| 9. Room | Hablar 2-3 turnos y abrir *View → Tool Windows → App Inspection → Database Inspector* | Base `tutor.db` con filas en `sessions`, `messages`, `corrections` y `vocab`. Ciérrala desde recientes y ábrela: se crea una sesión nueva y los datos anteriores siguen ahí. |
 
 ### Emulador
 - Micrófono: en el emulador, `⋮ → Microphone → "Virtual microphone uses host audio input"` (se desactiva cada vez que reinicias el emulador).

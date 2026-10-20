@@ -88,13 +88,16 @@ class ConversationViewModel(
             setStatus(TutorStatus.Thinking)
             val reply = repository.chat(_state.value.messages)
 
-            // Las correcciones se guardan en el mensaje del usuario (tarjetas: Fase 2)
+            // Las correcciones van en el mensaje del usuario (se ven como tarjetas)
             _state.update { s ->
                 val msgs = s.messages.toMutableList()
                 val last = msgs.lastIndex
                 msgs[last] = msgs[last].copy(corrections = reply.corrections)
                 s.copy(messages = msgs + ChatMessage(nextId++, Role.ASSISTANT, reply.reply))
             }
+
+            // Guardar antes de hablar: si interrumpes al tutor, el turno ya quedó guardado.
+            repository.saveTurn(userText, reply)
 
             // 3) Texto → voz
             setStatus(TutorStatus.Speaking)
