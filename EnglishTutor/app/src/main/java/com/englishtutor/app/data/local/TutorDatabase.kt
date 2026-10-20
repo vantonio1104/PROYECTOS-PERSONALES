@@ -12,6 +12,7 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
+import com.englishtutor.app.data.Correction
 import com.englishtutor.app.data.Role
 import com.englishtutor.app.data.TutorReply
 
@@ -65,6 +66,13 @@ abstract class TutorDao {
 
     @Query("UPDATE sessions SET endedAt = :endedAt WHERE id = :sessionId")
     abstract suspend fun updateSessionEnd(sessionId: Long, endedAt: Long)
+
+    /** Errores más repetidos (agrupados por la forma correcta); si empatan, los más recientes. */
+    @Query(
+        "SELECT original, better, explanation FROM corrections " +
+            "GROUP BY lower(trim(better)) ORDER BY COUNT(*) DESC, MAX(id) DESC LIMIT :limit"
+    )
+    abstract suspend fun frequentErrors(limit: Int): List<Correction>
 
     /** Guarda un turno completo (tu mensaje + correcciones + respuesta + vocabulario): todo o nada. */
     @Transaction

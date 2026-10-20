@@ -10,6 +10,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -55,6 +58,7 @@ import com.englishtutor.app.R
 import com.englishtutor.app.data.ChatMessage
 import com.englishtutor.app.data.Correction
 import com.englishtutor.app.data.Role
+import com.englishtutor.app.data.Scenario
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,7 +71,16 @@ fun ConversationScreen(vm: ConversationViewModel = viewModel(factory = Conversat
         if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("English Tutor") }) }) { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(if (state.messages.isEmpty()) "English Tutor" else state.scenario.label) },
+                actions = {
+                    if (state.messages.isNotEmpty()) TextButton(onClick = vm::newConversation) { Text("Nueva") }
+                },
+            )
+        }
+    ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(
                 state = listState,
@@ -77,11 +90,7 @@ fun ConversationScreen(vm: ConversationViewModel = viewModel(factory = Conversat
             ) {
                 if (state.messages.isEmpty()) {
                     item {
-                        Text(
-                            "Mantén presionado el micrófono y saluda a tu tutor en inglés 👋",
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(24.dp),
-                        )
+                        SessionStart(state.scenario, state.review, onSelect = vm::selectScenario)
                     }
                 }
                 items(state.messages, key = { it.id }) { MessageBubble(it) }
@@ -141,6 +150,33 @@ private fun CorrectionCard(c: Correction) {
                 Text(c.explanation, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
             }
         }
+    }
+}
+
+/** Inicio de sesión: elegir escenario + repaso de errores frecuentes. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun SessionStart(selected: Scenario, review: List<Correction>, onSelect: (Scenario) -> Unit) {
+    Column(Modifier.padding(12.dp)) {
+        Text("¿Qué quieres practicar?", style = MaterialTheme.typography.titleMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Scenario.entries.forEach { s ->
+                FilterChip(selected = s == selected, onClick = { onSelect(s) }, label = { Text(s.label) })
+            }
+        }
+        if (review.isNotEmpty()) {
+            Text(
+                "Repaso: tus errores frecuentes (toca para ver la explicación)",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+            review.forEach { CorrectionCard(it) }
+        }
+        Text(
+            "Mantén presionado el micrófono y saluda a tu tutor en inglés 👋",
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(top = 16.dp),
+        )
     }
 }
 

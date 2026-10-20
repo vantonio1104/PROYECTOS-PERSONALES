@@ -41,9 +41,9 @@ class TutorRepository(
     }
 
     /** Historial → respuesta del tutor. Solo enviamos los últimos ~20 mensajes. */
-    suspend fun chat(history: List<ChatMessage>): TutorReply = withRetry {
+    suspend fun chat(history: List<ChatMessage>, scenario: Scenario): TutorReply = withRetry {
         val messages = buildList {
-            add(ApiMessage("system", SYSTEM_PROMPT))
+            add(ApiMessage("system", "$SYSTEM_PROMPT\n\nScenario: ${scenario.prompt} Stay in this role, but keep correcting my mistakes."))
             history.takeLast(MAX_HISTORY).forEach { msg ->
                 val role = if (msg.role == Role.USER) "user" else "assistant"
                 add(ApiMessage(role, msg.text))
@@ -55,19 +55,34 @@ class TutorRepository(
         parseReply(content)
     }
 
-    // Una sesión por cada vez que abres la app; se crea con el primer turno (sin sesiones vacías).
+    // La sesión se crea con el primer turno (sin sesiones vacías); "Nueva" la reinicia.
     private var sessionId: Long? = null
 
+    fun startNewSession() {
+        sessionId = null
+    }
+
     /** Guarda el turno en Room. Si falla, solo se registra: la conversación sigue. */
-    suspend fun saveTurn(userText: String, reply: TutorReply) {
+    suspend fun saveTurn(userText: String, reply: TutorReply, scenario: Scenario) {
         try {
             val now = System.currentTimeMillis()
-            val id = sessionId ?: dao.insertSession(SessionEntity(startedAt = now, endedAt = now)).also { sessionId = it }
+            val id = sessionId ?: dao.insertSession(
+                SessionEntity(startedAt = now, endedAt = now, scenario = scenario.name.lowercase())
+            ).also { sessionId = it }
             dao.saveTurn(id, userText, reply)
         } catch (e: SQLException) {
             Log.e(TAG, "No se pudo guardar el turno en Room", e)
         }
     }
+
+    /** Para el repaso al inicio de cada sesión. */
+    suspend fun frequentErrors(): List<Correction> =
+        try {
+            dao.frequentErrors(5)
+        } catch (e: SQLException) {
+            Log.e(TAG, "No se pudo leer el repaso", e)
+            emptyList()
+        }
 
     /** Si el JSON viene mal formado, usamos el texto crudo como reply (sin crashear). */
     private fun parseReply(content: String): TutorReply =

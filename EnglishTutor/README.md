@@ -1,6 +1,7 @@
-# English Tutor — Fase 2
+# English Tutor — Fase 3
 
-Fase 2: tarjetas de corrección bajo tus mensajes + todo se guarda en Room (`tutor.db`).
+- Fase 2: tarjetas de corrección bajo tus mensajes + todo se guarda en Room (`tutor.db`).
+- Fase 3: escenarios de roleplay (charla libre, entrevista, restaurante, soporte técnico) + repaso de tus errores frecuentes al inicio de cada sesión.
 
 Flujo: **mantener presionado 🎙️ → Whisper (Groq) → LLM (Groq) → TextToSpeech**, con el chat en pantalla.
 
@@ -10,7 +11,7 @@ app/src/main/java/com/englishtutor/app/
 ├── EnglishTutorApp.kt          # "DI manual": crea repository, recorder y speaker
 ├── MainActivity.kt             # Arranca Compose
 ├── data/
-│   ├── TutorModels.kt          # TutorReply / Correction / Vocab (contrato JSON) + ChatMessage
+│   ├── TutorModels.kt          # TutorReply / Correction / Vocab (contrato JSON) + ChatMessage + Scenario
 │   ├── TutorRepository.kt      # transcribe(), chat(), saveTurn(), system prompt, reintento 429, JSON tolerante
 │   ├── local/TutorDatabase.kt  # Room: tablas sessions/messages/corrections/vocab + DAO
 │   └── remote/                 # Retrofit: GroqApi, GroqClient (auth + logging), DTOs
@@ -44,6 +45,8 @@ Filtra Logcat por el tag **`Tutor`** y por **`okhttp`**.
 | 7. Errores | Modo avión y hablar | Banner "Sin conexión…" sin que la app se caiga. Key falsa → "API key inválida". |
 | 8. Correcciones | Decir algo con error ("Yesterday I go to the beach") | Bajo tu burbuja aparece una tarjeta "✏️ Yesterday I went to the beach". Tócala: se ve lo que dijiste (tachado) y la explicación en español. |
 | 9. Room | Hablar 2-3 turnos y abrir *View → Tool Windows → App Inspection → Database Inspector* | Base `tutor.db` con filas en `sessions`, `messages`, `corrections` y `vocab`. Ciérrala desde recientes y ábrela: se crea una sesión nueva y los datos anteriores siguen ahí. |
+| 10. Escenarios | En la pantalla inicial elige "Restaurante" y di "Hi, can I see the menu?" | El tutor responde como mesero. El título cambia a "Restaurante". En Database Inspector, `sessions.scenario = restaurant`. |
+| 11. Nueva sesión | Tocar **Nueva** arriba a la derecha | Se limpia el chat y vuelven los escenarios. Aparece "Repaso: tus errores frecuentes" con tarjetas de sesiones anteriores (las más repetidas primero). |
 
 ### Emulador
 - Micrófono: en el emulador, `⋮ → Microphone → "Virtual microphone uses host audio input"` (se desactiva cada vez que reinicias el emulador).

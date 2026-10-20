@@ -11,7 +11,9 @@ import com.englishtutor.app.EnglishTutorApp
 import com.englishtutor.app.audio.AudioRecorder
 import com.englishtutor.app.audio.Speaker
 import com.englishtutor.app.data.ChatMessage
+import com.englishtutor.app.data.Correction
 import com.englishtutor.app.data.Role
+import com.englishtutor.app.data.Scenario
 import com.englishtutor.app.data.TutorException
 import com.englishtutor.app.data.TutorRepository
 import kotlinx.coroutines.Job
@@ -27,6 +29,8 @@ data class ConversationUiState(
     val messages: List<ChatMessage> = emptyList(),
     val status: TutorStatus = TutorStatus.Idle,
     val error: String? = null,
+    val scenario: Scenario = Scenario.FREE,
+    val review: List<Correction> = emptyList(), // errores frecuentes para repasar al empezar
 )
 
 class ConversationViewModel(
@@ -45,6 +49,32 @@ class ConversationViewModel(
 
     private var turnJob: Job? = null
     private var nextId = 0L
+
+    init {
+        loadReview()
+    }
+
+    /** Solo se puede elegir antes de empezar a hablar (el escenario es de toda la sesión). */
+    fun selectScenario(scenario: Scenario) {
+        if (_state.value.messages.isEmpty()) _state.update { it.copy(scenario = scenario) }
+    }
+
+    /** Termina la conversación actual: vuelve a la elección de escenario y al repaso. */
+    fun newConversation() {
+        turnJob?.cancel()
+        speaker.stop()
+        recorder.stop()
+        repository.startNewSession()
+        _state.update { it.copy(messages = emptyList(), status = TutorStatus.Idle, error = null) }
+        loadReview()
+    }
+
+    private fun loadReview() {
+        viewModelScope.launch {
+            val review = repository.frequentErrors()
+            _state.update { it.copy(review = review) }
+        }
+    }
 
     /** El usuario presionó el botón del micrófono. */
     fun onPressMic() {
@@ -86,7 +116,7 @@ class ConversationViewModel(
 
             // 2) Texto → tutor (LLM)
             setStatus(TutorStatus.Thinking)
-            val reply = repository.chat(_state.value.messages)
+            val reply = repository.chat(_state.value.messages, _state.value.scenario)
 
             // Las correcciones van en el mensaje del usuario (se ven como tarjetas)
             _state.update { s ->
@@ -97,7 +127,7 @@ class ConversationViewModel(
             }
 
             // Guardar antes de hablar: si interrumpes al tutor, el turno ya quedó guardado.
-            repository.saveTurn(userText, reply)
+            repository.saveTurn(userText, reply, _state.value.scenario)
 
             // 3) Texto → voz
             setStatus(TutorStatus.Speaking)
