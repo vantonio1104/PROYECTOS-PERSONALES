@@ -1,0 +1,4 @@
+<resources>
+    <!-- Tema base sin ActionBar; los colores reales los pone Compose (Material 3). -->
+    <style name="Theme.EnglishTutor" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

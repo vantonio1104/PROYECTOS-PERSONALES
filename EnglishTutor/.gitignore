@@ -1,0 +1,14 @@
+# Secretos: la API key vive aquí
+local.properties
+
+# Gradle / Android Studio
+.gradle/
+build/
+/captures
+.externalNativeBuild/
+.cxx/
+*.iml
+.idea/
+.DS_Store
+*.apk
+*.aab
