@@ -1,78 +1,106 @@
-# English Tutor — Fase 1 (MVP)
+# English Tutor
 
-Flujo: **mantener presionado 🎙️ → Whisper (Groq) → LLM (Groq) → TextToSpeech**, con el chat en pantalla.
+App Android personal para practicar inglés **hablando** con un tutor de IA (Groq), que corrige tus errores en español sin cortar la conversación. Ver `CLAUDE.md` para el diseño original.
+
+## Estado
+
+| Fase | Contenido | Estado |
+|---|---|---|
+| 1 | Grabar → Whisper → LLM → voz, chat en pantalla | ✅ compila + pruebas automáticas |
+| 2 | Room (sesiones, mensajes, correcciones, vocabulario), tarjetas de corrección, Historial, Vocabulario/Errores, Ajustes | ✅ compila + pruebas automáticas |
+| 3 | Escenarios de roleplay y repaso de errores frecuentes al inicio | ✅ compila + pruebas automáticas |
+| 4 | Contador de minutos diarios con meta + voz Orpheus opcional (de pago) | ✅ compila + pruebas automáticas |
+
+> ⚠️ Todo fue desarrollado y probado **sin celular** (51 pruebas automáticas en la JVM). Falta la prueba manual en un dispositivo real: ver la lista de abajo.
 
 ## Estructura
+
 ```
 app/src/main/java/com/englishtutor/app/
-├── EnglishTutorApp.kt          # "DI manual": crea repository, recorder y speaker
-├── MainActivity.kt             # Arranca Compose
-├── data/
-│   ├── TutorModels.kt          # TutorReply / Correction / Vocab (contrato JSON) + ChatMessage
-│   ├── TutorRepository.kt      # transcribe(), chat(), system prompt, reintento 429, JSON tolerante
-│   └── remote/                 # Retrofit: GroqApi, GroqClient (auth + logging), DTOs
+├── EnglishTutorApp.kt            # DI manual: base de datos, repositorios, micrófono y voces
+├── MainActivity.kt
 ├── audio/
-│   ├── AudioRecorder.kt        # MediaRecorder → cache/turn.m4a (AAC 16 kHz mono)
-│   └── Speaker.kt              # TextToSpeech en inglés; speak() espera a que termine
+│   ├── Voice.kt                  # Interfaces VoiceRecorder y TutorVoice (permiten fakes en tests)
+│   ├── AudioRecorder.kt          # MediaRecorder → cache/turn.m4a
+│   ├── Speaker.kt                # Voz gratis de Android (TextToSpeech), con velocidad
+│   ├── OrpheusVoice.kt           # Voz Groq Orpheus (divide el texto en trozos de ≤200 caracteres)
+│   └── AudioPlayer.kt            # Reproduce los WAV de Orpheus
+├── data/
+│   ├── TutorRepository.kt        # Groq (transcribir, chat, voz) + Room; reintento 429; errores en español
+│   ├── TutorPrompt.kt            # System prompt: nivel + escenario + errores a repasar
+│   ├── Scenario.kt               # Escenarios (charla libre, entrevista, restaurante, soporte) y niveles
+│   ├── Settings.kt               # TutorSettings + SettingsRepository (DataStore)
+│   ├── TextChunker.kt            # Divide texto largo en oraciones (para Orpheus)
+│   ├── TutorModels.kt            # Contrato JSON del tutor + ChatMessage
+│   ├── local/                    # Room: entidades, DAO, consultas (historial, errores, minutos)
+│   └── remote/                   # Retrofit: GroqApi, GroqClient, DTOs
 └── ui/
-    ├── ConversationViewModel.kt # Estados Idle/Recording/Transcribing/Thinking/Speaking/Error
-    ├── ConversationScreen.kt    # Chat + botón push-to-talk + permiso RECORD_AUDIO
-    └── theme/Theme.kt
+    ├── AppNavigation.kt          # Barra inferior: Conversar · Historial · Vocabulario · Ajustes
+    ├── components/               # Burbujas, tarjetas de corrección, ScreenScaffold
+    ├── conversation/             # Pantalla principal + ConversationViewModel
+    ├── history/                  # Lista de sesiones y detalle (con borrar)
+    ├── vocab/                    # Palabras nuevas y errores frecuentes
+    ├── settings/                 # Ajustes
+    └── theme/
+
+app/src/test/java/com/englishtutor/app/   # Pruebas automáticas (ver abajo)
 ```
 
 ## Configuración
-1. Abre la carpeta en Android Studio (deja que haga *Gradle Sync*).
-2. Crea tu key en https://console.groq.com/keys
-3. En `local.properties` (raíz del proyecto) agrega: `GROQ_API_KEY=gsk_...`
-   (ver `local.properties.example`). Este archivo está en `.gitignore`.
-4. *Build → Rebuild Project* (para que se regenere `BuildConfig.GROQ_API_KEY`).
 
-## Cómo probar cada parte
-Filtra Logcat por el tag **`Tutor`** y por **`okhttp`**.
+1. Abre la carpeta `EnglishTutor` en Android Studio y espera el *Gradle Sync*.
+2. En `local.properties` agrega `GROQ_API_KEY=gsk_...` (ver `local.properties.example`; el archivo está en `.gitignore`).
+3. *Build → Rebuild Project* y ejecuta en el celular.
 
-| Paso | Qué probar | Qué deberías ver |
+> Si alguna vez instalaste la versión del paso 2.1 (commit `f9558a1`), **desinstala la app una vez** antes de instalar esta: la tabla `vocab` cambió y Room no puede abrir la base de datos antigua con la misma versión.
+
+## Pruebas automáticas (sin celular)
+
+```powershell
+cd EnglishTutor
+.\gradlew.bat testDebugUnitTest
+```
+En Android Studio: clic derecho en `app/src/test` → **Run 'Tests in…'**. Reporte HTML: `app/build/reports/tests/testDebugUnitTest/index.html`.
+
+| Archivo | Qué prueba | Tests |
 |---|---|---|
-| 1. Esqueleto | Ejecutar la app (▶) | Pantalla "English Tutor" + botón azul. Si falta la key: banner rojo "Falta GROQ_API_KEY". |
-| 2. Permiso | Presionar el botón la 1ª vez | Diálogo de permiso de micrófono. Acéptalo. |
-| 3. Grabación | Mantener presionado | Botón rojo y más grande, "Grabando…". Un toque rápido (<0,5 s) muestra "Mantén presionado…". |
-| 4. Whisper | Decir "Hello, how are you?" y soltar | "Transcribiendo…", luego tu burbuja. Logcat: `Whisper: "Hello, how are you?"` y `POST …/audio/transcriptions 200`. |
-| 5. LLM | (sigue solo) | "El tutor está pensando…", luego burbuja del tutor. Logcat: `LLM raw: {"reply": …}`. |
-| 6. TTS | (sigue solo) | Se escucha la respuesta en inglés, "Hablando…". Presionar el botón mientras habla lo interrumpe. |
-| 7. Errores | Modo avión y hablar | Banner "Sin conexión…" sin que la app se caiga. Key falsa → "API key inválida". |
-| 8. Correcciones | Decir algo con error ("Yesterday I go to the beach") | Logcat `LLM raw` trae `corrections` con explicación en español (las tarjetas se ven en Fase 2). |
+| `TutorRepositoryNetworkTest` | Peticiones reales contra un **servidor HTTP falso** (MockWebServer): formato del chat, `json_object`, API key, historial de 20 mensajes, mensaje de inicio, JSON mal formado, reintento 429, errores 401/5xx/sin red, multipart de Whisper, Orpheus WAV | 13 |
+| `TutorRepositoryPersistenceTest` | Room en memoria: turno completo, vocabulario sin duplicados, repasadas, errores frecuentes agrupados, borrado en cascada, minutos practicados, orden del historial | 8 |
+| `ConversationViewModelTest` | Flujo completo con micrófono/voces falsas: estados, correcciones, guardado, escenario, modelo y nivel de ajustes, grabación corta, transcripción vacía, error y recuperación, Orpheus y su respaldo, nueva sesión, repaso de errores, contador diario | 14 |
+| `ComposeUiTest` | Pantallas dibujadas con Robolectric: tarjeta que se expande, inicio (escenarios, repaso, progreso), chat con correcciones y error, ajustes | 5 |
+| `SettingsRepositoryTest` | DataStore: valores por defecto, guardar/leer, valores inválidos | 3 |
+| `TutorPromptTest`, `TextChunkerTest` | System prompt y división de texto | 8 |
 
-### Emulador
-- Micrófono: en el emulador, `⋮ → Microphone → "Virtual microphone uses host audio input"` (se desactiva cada vez que reinicias el emulador).
-- Voz: si no se escucha, revisa *Ajustes → Sistema → Idioma → Salida de texto a voz* y descarga la voz en inglés (EE.UU.).
+Las piezas falsas (API de Groq, micrófono, voces, base en memoria) están en `TestFixtures.kt`.
 
-### Celular
-Activa *Opciones de desarrollador → Depuración USB*, conéctalo y elígelo en Android Studio. Es la forma más fiable de probar el micrófono.
+## Pruebas manuales en el celular
 
----
+Filtra Logcat por el tag **`Tutor`** (verás `Whisper: "..."` y `LLM raw: {...}`).
 
-# Fase 2 — Room y correcciones
+**Conversación (Fases 1-3)**
+- [ ] Sin key: banner "Falta GROQ_API_KEY". Con key: sin banner.
+- [ ] Primer toque al micrófono → pide permiso.
+- [ ] Elegir **Restaurante** → "Que el tutor empiece" → el tutor saluda como mesero y se escucha.
+- [ ] Mantener presionado y decir *"Yesterday I go to the beach"* → tu burbuja + **tarjeta de corrección** (al tocarla muestra la explicación en español) + respuesta hablada.
+- [ ] Presionar el micrófono mientras el tutor habla → se interrumpe y graba.
+- [ ] Toque muy corto → "Mantén presionado…". Modo avión → "Sin conexión…" (la app no se cae).
+- [ ] Botón ↻ (arriba) → nueva sesión con el selector de escenarios.
+- [ ] Después de algunas sesiones con errores: al iniciar aparece **"📌 Hoy repasamos"** y el tutor te hace usar esas formas.
 
-## Progreso
-| Paso | Estado |
-|---|---|
-| Fase 1 compila (`gradlew assembleDebug`, 0 errores) | ✅ |
-| 2.1 Guardar sesiones, mensajes, correcciones y vocabulario en Room | ✅ compila — falta probar en el celular |
-| 2.2 Tarjetas de corrección expandibles | ⏳ siguiente |
-| 2.3 Pantallas Historial y Vocabulario | ⏳ |
-| 2.4 Ajustes (DataStore) | ⏳ |
+**Historial y Vocabulario (Fase 2)**
+- [ ] Historial: sesiones con escenario, fecha, minutos y mensajes. Al abrir una se ven los mensajes con sus tarjetas. 🗑 borra (pide confirmación).
+- [ ] Vocabulario → "Palabras": términos nuevos; ✓ suma "Repasada N veces"; 🗑 borra.
+- [ ] Vocabulario → "Errores frecuentes": ordenados por cantidad de veces.
+- [ ] Opcional: *App Inspection → Database Inspector* → `english_tutor.db`.
 
-## Paso 2.1: qué se agregó
-- `data/local/Entities.kt`: las 4 tablas (`sessions`, `messages`, `corrections`, `vocab`). Las claves foráneas con `CASCADE` borran mensajes y correcciones si se borra su sesión.
-- `data/local/TutorDao.kt`: las consultas. Room genera el SQL real al compilar (con KSP) y avisa si una consulta está mal escrita.
-- `data/local/AppDatabase.kt`: crea el archivo `english_tutor.db`.
-- `TutorRepository`: `startSession()`, `saveUserMessage()` y `saveTutorTurn()`.
-- La sesión se crea con tu **primer mensaje** (abrir y cerrar la app no deja sesiones vacías). `endedAt` se actualiza en cada turno.
+**Ajustes y Fase 4**
+- [ ] Cambiar nivel, modelo (`openai/gpt-oss-120b`) y velocidad de voz → se nota en la siguiente respuesta.
+- [ ] Escenario por defecto → se usa al abrir la app / nueva sesión.
+- [ ] Barra **"Hoy: X / 60 min"** sube al conversar; la meta se cambia en Ajustes.
+- [ ] Voz **Orpheus** (de pago): se escucha más natural. Si falla, aparece un aviso y habla la voz de Android. Si Groq pide aceptar términos del modelo, acéptalos en console.groq.com.
 
-## Cómo probar el paso 2.1
-1. Ejecuta la app en el celular y conversa 2 o 3 turnos (di algo con un error a propósito, por ejemplo "Yesterday I go to the beach").
-2. En Android Studio: **View → Tool Windows → App Inspection → Database Inspector**, con la app abierta.
-3. Abre `english_tutor.db` y revisa:
-   - `sessions`: 1 fila.
-   - `messages`: tus mensajes (`user`) y los del tutor (`assistant`).
-   - `corrections`: la corrección, con `messageId` = id de tu mensaje.
-   - `vocab`: palabras nuevas, si el tutor sugirió alguna.
+## Notas
+
+- **Groq (verificado en la documentación, nov. 2026):** chat `llama-3.3-70b-versatile` / `openai/gpt-oss-120b`, Whisper `whisper-large-v3-turbo`, voz `canopylabs/orpheus-v1-english` (*preview*, USD 22 por millón de caracteres, solo WAV, máx. 200 caracteres por petición; voces: diana, hannah, autumn, austin, daniel, troy).
+- **Minutos practicados** = suma de la duración de las sesiones de hoy (desde que empieza hasta tu último turno).
+- **Errores frecuentes** se agrupan por frase original + corrección, sin importar mayúsculas.

@@ -1,5 +1,6 @@
 package com.englishtutor.app.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -11,7 +12,7 @@ data class SessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val startedAt: Long,
     val endedAt: Long? = null,
-    val scenario: String = "free_talk", // los escenarios llegan en la Fase 3
+    val scenario: String = "free_talk", // id de data.Scenario
 )
 
 /** Un mensaje del chat. role = "user" | "assistant". Si se borra la sesión, se borran sus mensajes. */
@@ -52,11 +53,11 @@ data class CorrectionEntity(
     val explanation: String,
 )
 
-/** Vocabulario nuevo. "term" es único: si el tutor repite una palabra, no se duplica. */
+/** Vocabulario nuevo. "term" es único sin importar mayúsculas: si el tutor repite una palabra, no se duplica. */
 @Entity(tableName = "vocab", indices = [Index(value = ["term"], unique = true)])
 data class VocabEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val term: String,
+    @ColumnInfo(collate = ColumnInfo.NOCASE) val term: String,
     val meaning: String,
     val example: String,
     val createdAt: Long,

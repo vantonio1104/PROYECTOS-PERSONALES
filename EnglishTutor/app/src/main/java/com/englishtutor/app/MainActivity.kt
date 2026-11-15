@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.englishtutor.app.ui.ConversationScreen
+import com.englishtutor.app.ui.AppNavigation
 import com.englishtutor.app.ui.theme.EnglishTutorTheme
 
 class MainActivity : ComponentActivity() {
@@ -12,7 +12,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            EnglishTutorTheme { ConversationScreen() }
+            EnglishTutorTheme { AppNavigation() }
         }
     }
 }

@@ -4,12 +4,13 @@ import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import com.englishtutor.app.data.TutorSettings
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
 import kotlin.coroutines.resume
 
-/** Envoltorio de TextToSpeech: speak() suspende hasta que termina de hablar. */
-class Speaker(context: Context) : TextToSpeech.OnInitListener {
+/** Voz gratis de Android (TextToSpeech). speak() suspende hasta que termina de hablar. */
+class Speaker(context: Context) : TextToSpeech.OnInitListener, TutorVoice {
 
     @Volatile private var ready = false
     @Volatile private var onDone: (() -> Unit)? = null
@@ -37,8 +38,9 @@ class Speaker(context: Context) : TextToSpeech.OnInitListener {
         })
     }
 
-    suspend fun speak(text: String) {
+    override suspend fun speak(text: String, settings: TutorSettings) {
         if (!ready || text.isBlank()) return
+        tts.setSpeechRate(settings.ttsRate)
         suspendCancellableCoroutine { cont ->
             onDone = { if (cont.isActive) cont.resume(Unit) }
             cont.invokeOnCancellation { tts.stop() }
@@ -46,7 +48,7 @@ class Speaker(context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
-    fun stop() {
+    override fun stop() {
         tts.stop()
         finish()
     }

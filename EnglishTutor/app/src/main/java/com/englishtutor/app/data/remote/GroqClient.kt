@@ -10,7 +10,7 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
 object GroqClient {
-    private const val BASE_URL = "https://api.groq.com/openai/v1/"
+    const val BASE_URL = "https://api.groq.com/openai/v1/"
 
     val json = Json {
         ignoreUnknownKeys = true // Groq devuelve muchos campos que no necesitamos
@@ -18,12 +18,13 @@ object GroqClient {
         isLenient = true
     }
 
-    fun create(): GroqApi {
+    /** baseUrl y apiKey son parámetros para que los tests puedan usar un servidor falso. */
+    fun create(baseUrl: String = BASE_URL, apiKey: String = BuildConfig.GROQ_API_KEY): GroqApi {
         val okHttp = OkHttpClient.Builder()
             // Agrega "Authorization: Bearer <key>" a cada petición
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder()
-                    .header("Authorization", "Bearer ${BuildConfig.GROQ_API_KEY}")
+                    .header("Authorization", "Bearer $apiKey")
                     .build()
                 chain.proceed(request)
             }
@@ -40,7 +41,7 @@ object GroqClient {
             .build()
 
         return Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(baseUrl)
             .client(okHttp)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()

@@ -26,3 +26,12 @@ data class ChatResponse(val choices: List<Choice>)
 
 @Serializable
 data class Choice(val message: ApiMessage)
+
+// ---- Texto a voz (Orpheus, Fase 4) ----
+@Serializable
+data class SpeechRequest(
+    val model: String,
+    val input: String,
+    val voice: String,
+    val response_format: String = "wav", // Orpheus solo entrega WAV
+)

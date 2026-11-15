@@ -7,13 +7,13 @@ import android.util.Log
 import java.io.File
 
 /** Graba audio del micrófono en un .m4a (AAC) para el modo push-to-talk. */
-class AudioRecorder(private val context: Context) {
+class AudioRecorder(private val context: Context) : VoiceRecorder {
 
     private var recorder: MediaRecorder? = null
     private var outputFile: File? = null
     private var startedAt = 0L
 
-    fun start() {
+    override fun start() {
         stopAndRelease() // por si quedó una grabación colgada
         val file = File(context.cacheDir, "turn.m4a")
         val mr = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context)
@@ -36,7 +36,7 @@ class AudioRecorder(private val context: Context) {
     }
 
     /** Detiene la grabación. Devuelve null si fue demasiado corta o falló. */
-    fun stop(): File? {
+    override fun stop(): File? {
         val duration = System.currentTimeMillis() - startedAt
         val ok = stopAndRelease()
         return outputFile?.takeIf { ok && duration >= MIN_DURATION_MS && it.length() > 0 }
