@@ -47,3 +47,32 @@ Filtra Logcat por el tag **`Tutor`** y por **`okhttp`**.
 
 ### Celular
 Activa *Opciones de desarrollador → Depuración USB*, conéctalo y elígelo en Android Studio. Es la forma más fiable de probar el micrófono.
+
+---
+
+# Fase 2 — Room y correcciones
+
+## Progreso
+| Paso | Estado |
+|---|---|
+| Fase 1 compila (`gradlew assembleDebug`, 0 errores) | ✅ |
+| 2.1 Guardar sesiones, mensajes, correcciones y vocabulario en Room | ✅ compila — falta probar en el celular |
+| 2.2 Tarjetas de corrección expandibles | ⏳ siguiente |
+| 2.3 Pantallas Historial y Vocabulario | ⏳ |
+| 2.4 Ajustes (DataStore) | ⏳ |
+
+## Paso 2.1: qué se agregó
+- `data/local/Entities.kt`: las 4 tablas (`sessions`, `messages`, `corrections`, `vocab`). Las claves foráneas con `CASCADE` borran mensajes y correcciones si se borra su sesión.
+- `data/local/TutorDao.kt`: las consultas. Room genera el SQL real al compilar (con KSP) y avisa si una consulta está mal escrita.
+- `data/local/AppDatabase.kt`: crea el archivo `english_tutor.db`.
+- `TutorRepository`: `startSession()`, `saveUserMessage()` y `saveTutorTurn()`.
+- La sesión se crea con tu **primer mensaje** (abrir y cerrar la app no deja sesiones vacías). `endedAt` se actualiza en cada turno.
+
+## Cómo probar el paso 2.1
+1. Ejecuta la app en el celular y conversa 2 o 3 turnos (di algo con un error a propósito, por ejemplo "Yesterday I go to the beach").
+2. En Android Studio: **View → Tool Windows → App Inspection → Database Inspector**, con la app abierta.
+3. Abre `english_tutor.db` y revisa:
+   - `sessions`: 1 fila.
+   - `messages`: tus mensajes (`user`) y los del tutor (`assistant`).
+   - `corrections`: la corrección, con `messageId` = id de tu mensaje.
+   - `vocab`: palabras nuevas, si el tutor sugirió alguna.

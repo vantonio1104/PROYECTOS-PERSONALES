@@ -1,6 +1,11 @@
 package com.englishtutor.app.data
 
 import android.util.Log
+import com.englishtutor.app.data.local.CorrectionEntity
+import com.englishtutor.app.data.local.MessageEntity
+import com.englishtutor.app.data.local.SessionEntity
+import com.englishtutor.app.data.local.TutorDao
+import com.englishtutor.app.data.local.VocabEntity
 import com.englishtutor.app.data.remote.ApiMessage
 import com.englishtutor.app.data.remote.ChatRequest
 import com.englishtutor.app.data.remote.GroqApi
@@ -19,8 +24,33 @@ class TutorException(message: String, cause: Throwable? = null) : Exception(mess
 
 class TutorRepository(
     private val api: GroqApi,
+    private val dao: TutorDao,
     private val llmModel: String = DEFAULT_LLM_MODEL,
 ) {
+
+    // ---- Persistencia (Room) ----
+
+    suspend fun startSession(): Long =
+        dao.insertSession(SessionEntity(startedAt = System.currentTimeMillis()))
+
+    /** Guarda tu mensaje y devuelve su id (para ligarle después las correcciones). */
+    suspend fun saveUserMessage(sessionId: Long, text: String): Long =
+        dao.insertMessage(MessageEntity(sessionId = sessionId, role = "user", text = text, createdAt = System.currentTimeMillis()))
+
+    /** Guarda la respuesta del tutor, las correcciones de tu mensaje y el vocabulario nuevo. */
+    suspend fun saveTutorTurn(sessionId: Long, userMessageId: Long, reply: TutorReply) {
+        val now = System.currentTimeMillis()
+        dao.insertMessage(MessageEntity(sessionId = sessionId, role = "assistant", text = reply.reply, createdAt = now))
+        dao.insertCorrections(reply.corrections.map {
+            CorrectionEntity(messageId = userMessageId, original = it.original, better = it.better, explanation = it.explanation)
+        })
+        dao.insertVocab(reply.new_vocab.map {
+            VocabEntity(term = it.term.trim(), meaning = it.meaning, example = it.example, createdAt = now)
+        })
+        dao.updateSessionEnd(sessionId, now) // la sesión "termina" en tu último turno
+    }
+
+    // ---- Groq ----
 
     /** Audio (.m4a) → texto en inglés usando Whisper. */
     suspend fun transcribe(audio: File): String = withRetry {

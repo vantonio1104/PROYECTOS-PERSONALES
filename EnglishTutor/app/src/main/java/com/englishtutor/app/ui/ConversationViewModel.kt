@@ -45,6 +45,7 @@ class ConversationViewModel(
 
     private var turnJob: Job? = null
     private var nextId = 0L
+    private var sessionId: Long? = null // se crea con tu primer mensaje (sin sesiones vacías)
 
     /** El usuario presionó el botón del micrófono. */
     fun onPressMic() {
@@ -83,6 +84,8 @@ class ConversationViewModel(
                 return
             }
             addMessage(ChatMessage(nextId++, Role.USER, userText))
+            val session = sessionId ?: repository.startSession().also { sessionId = it }
+            val userMessageId = repository.saveUserMessage(session, userText)
 
             // 2) Texto → tutor (LLM)
             setStatus(TutorStatus.Thinking)
@@ -95,6 +98,7 @@ class ConversationViewModel(
                 msgs[last] = msgs[last].copy(corrections = reply.corrections)
                 s.copy(messages = msgs + ChatMessage(nextId++, Role.ASSISTANT, reply.reply))
             }
+            repository.saveTutorTurn(session, userMessageId, reply)
 
             // 3) Texto → voz
             setStatus(TutorStatus.Speaking)
