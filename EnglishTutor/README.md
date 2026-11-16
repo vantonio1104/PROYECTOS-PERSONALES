@@ -12,7 +12,7 @@ App Android personal para practicar inglés **hablando** con un tutor de IA (Gro
 | 4 | Contador de minutos diarios con meta + voz Orpheus opcional (de pago) | ✅ compila + pruebas automáticas |
 | Extra | **⭐ Mis palabras**: di "guarda la palabra …" y se guarda con su significado; el tutor las practica contigo | ✅ compila + pruebas automáticas |
 
-> ⚠️ Todo fue desarrollado y probado **sin celular** (68 pruebas automáticas en la JVM). Falta la prueba manual en un dispositivo real: ver la lista de abajo.
+> ⚠️ Todo fue desarrollado y probado **sin celular** (71 pruebas automáticas en la JVM). Falta la prueba manual en un dispositivo real: ver la lista de abajo.
 
 ## Estructura
 
@@ -49,9 +49,20 @@ app/src/test/java/com/englishtutor/app/   # Pruebas automáticas (ver abajo)
 
 ## Configuración
 
+### Opción A: instalar el APK (sin PC)
+1. Copia `EnglishTutor-1.0.apk` al celular y ábrelo. Android pedirá permitir **"Instalar apps desconocidas"** para la app con que lo abriste (Archivos, Drive, etc.).
+2. Abre la app → **Ajustes → API key de Groq** → pega tu key (créala gratis en https://console.groq.com/keys) → **Guardar**.
+3. Vuelve a **Conversar**: el aviso 🔑 desaparece y ya puedes hablar.
+
+La key se guarda solo en el teléfono (DataStore privado de la app; `allowBackup` está desactivado).
+
+### Opción B: compilar en Android Studio
 1. Abre la carpeta `EnglishTutor` en Android Studio y espera el *Gradle Sync*.
-2. En `local.properties` agrega `GROQ_API_KEY=gsk_...` (ver `local.properties.example`; el archivo está en `.gitignore`).
+2. Opcional: en `local.properties` agrega `GROQ_API_KEY=gsk_...` (ver `local.properties.example`; el archivo está en `.gitignore`). Si no, pégala en Ajustes como en la opción A. **La key de Ajustes tiene prioridad.**
 3. *Build → Rebuild Project* y ejecuta en el celular.
+
+### Firma y actualizaciones
+El proyecto incluye `app/debug.keystore` (llave de debug estándar, contraseña `android`). Por eso el APK de la nube y el que compiles en tu PC tienen **la misma firma**: puedes instalar uno sobre otro sin desinstalar y **sin perder tus datos**. No es una llave secreta; sirve solo porque la app es personal y no va a Play Store.
 
 > La base de datos va en la **versión 2** (columna `isMine` para Mis palabras). Desde la versión 1 de `c5f8cc7` se actualiza sola sin perder datos (migración probada en `MigrationTest`). Solo si instalaste el commit `f9558a1` (paso 2.1) tendrás que **desinstalar la app una vez**.
 
@@ -77,13 +88,13 @@ En Android Studio: clic derecho en `app/src/test` → **Run 'Tests in…'**. Rep
 
 | Archivo | Qué prueba | Tests |
 |---|---|---|
-| `TutorRepositoryNetworkTest` | Peticiones reales contra un **servidor HTTP falso** (MockWebServer): formato del chat, `json_object`, API key, historial de 20 mensajes, mensaje de inicio, JSON mal formado, reintento 429, errores 401/5xx/sin red, multipart de Whisper, Orpheus WAV, `saved_words`, buscar significado | 16 |
+| `TutorRepositoryNetworkTest` | Peticiones reales contra un **servidor HTTP falso** (MockWebServer): formato del chat, `json_object`, API key (y que se use la vigente), historial de 20 mensajes, mensaje de inicio, JSON mal formado, reintento 429, errores 401/5xx/sin red, multipart de Whisper, Orpheus WAV, `saved_words`, buscar significado | 17 |
 | `TutorRepositoryPersistenceTest` | Room en memoria: turno completo, vocabulario sin duplicados, repasadas, errores frecuentes agrupados, borrado en cascada, minutos practicados, orden del historial, Mis palabras | 12 |
-| `ConversationViewModelTest` | Flujo completo con micrófono/voces falsas: estados, correcciones, guardado, escenario, modelo y nivel de ajustes, grabación corta, transcripción vacía, error y recuperación, Orpheus y su respaldo, nueva sesión, repaso de errores, contador diario, "guarda la palabra", palabras difíciles en el prompt | 16 |
+| `ConversationViewModelTest` | Flujo completo con micrófono/voces falsas: estados, correcciones, guardado, escenario, modelo y nivel de ajustes, grabación corta, transcripción vacía, error y recuperación, Orpheus y su respaldo, nueva sesión, repaso de errores, contador diario, "guarda la palabra", palabras difíciles en el prompt, aviso de API key | 17 |
 | `VocabViewModelTest` | Agregar palabra a mano (éxito y error), separar Mis palabras / Del tutor, estrella | 3 |
 | `ComposeUiTest` | Pantallas dibujadas con Robolectric: tarjeta que se expande, inicio (escenarios, repaso, progreso), chat con correcciones y error, ajustes, Mis palabras | 6 |
 | `MigrationTest` | Actualizar la base de datos v1 → v2 conserva los datos | 1 |
-| `SettingsRepositoryTest` | DataStore: valores por defecto, guardar/leer, valores inválidos | 3 |
+| `SettingsRepositoryTest` | DataStore: valores por defecto, guardar/leer, valores inválidos, prioridad de la API key | 4 |
 | `TutorPromptTest`, `TextChunkerTest` | System prompt y división de texto | 11 |
 
 > El diálogo "Agregar palabra" no tiene prueba de pantalla: en Robolectric, cualquier `AlertDialog` de Material 3 con un campo de texto se queda esperando para siempre (lo comprobé con un ejemplo mínimo, sin código de la app). Su lógica sí está probada en `VocabViewModelTest`; pruébalo a mano en el celular.
@@ -95,7 +106,8 @@ Las piezas falsas (API de Groq, micrófono, voces, base en memoria) están en `T
 Filtra Logcat por el tag **`Tutor`** (verás `Whisper: "..."` y `LLM raw: {...}`).
 
 **Conversación (Fases 1-3)**
-- [ ] Sin key: banner "Falta GROQ_API_KEY". Con key: sin banner.
+- [ ] Sin key: aviso "🔑 Falta tu API key de Groq". Al guardarla en Ajustes el aviso desaparece.
+- [ ] Key incorrecta → "API key inválida o vacía. Revísala en Ajustes."
 - [ ] Primer toque al micrófono → pide permiso.
 - [ ] Elegir **Restaurante** → "Que el tutor empiece" → el tutor saluda como mesero y se escucha.
 - [ ] Mantener presionado y decir *"Yesterday I go to the beach"* → tu burbuja + **tarjeta de corrección** (al tocarla muestra la explicación en español) + respuesta hablada.

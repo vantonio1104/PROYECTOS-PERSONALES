@@ -11,13 +11,19 @@ import com.englishtutor.app.data.SettingsRepository
 import com.englishtutor.app.data.TutorRepository
 import com.englishtutor.app.data.local.AppDatabase
 import com.englishtutor.app.data.remote.GroqClient
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 private val Context.settingsDataStore by preferencesDataStore(name = "settings")
 
 /** Inyección de dependencias manual: un solo lugar donde se crean los objetos. */
 class EnglishTutorApp : Application() {
     val database by lazy { AppDatabase.create(this) }
-    val repository by lazy { TutorRepository(GroqClient.create(), database.tutorDao()) }
+    val repository by lazy {
+        // OkHttp llama a esto en un hilo de fondo; DataStore guarda los ajustes en memoria, así que es rápido
+        val api = GroqClient.create(apiKey = { runBlocking { settingsRepository.settings.first().effectiveApiKey() } })
+        TutorRepository(api, database.tutorDao())
+    }
     val settingsRepository by lazy { SettingsRepository(settingsDataStore) }
     val recorder by lazy { AudioRecorder(this) }
     val speaker by lazy { Speaker(this) }

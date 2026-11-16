@@ -30,12 +30,13 @@ class TutorRepositoryNetworkTest {
     private lateinit var server: MockWebServer
     private lateinit var db: AppDatabase
     private lateinit var repository: TutorRepository
+    private var currentKey = "test-key"
 
     @Before
     fun setUp() {
         server = MockWebServer().apply { start() }
         db = inMemoryDatabase()
-        repository = TutorRepository(GroqClient.create(server.url("/openai/v1/").toString(), apiKey = "test-key"), db.tutorDao())
+        repository = TutorRepository(GroqClient.create(server.url("/openai/v1/").toString(), apiKey = { currentKey }), db.tutorDao())
     }
 
     @After
@@ -100,6 +101,17 @@ class TutorRepositoryNetworkTest {
     fun `defineWord con respuesta invalida muestra un error claro`() = runTest {
         server.enqueue(chatResponse("no idea"))
         assertTrue(expectTutorException { repository.defineWord("xyz") }.message!!.contains("significado"))
+    }
+
+    @Test
+    fun `usa la API key vigente en cada peticion`() = runTest {
+        server.enqueue(chatResponse(tutorJson()))
+        server.enqueue(chatResponse(tutorJson()))
+        repository.chat(history(1))
+        currentKey = "gsk_nueva"   // por ejemplo, la cambiaste en Ajustes
+        repository.chat(history(1))
+        assertEquals("Bearer test-key", server.takeRequest().getHeader("Authorization"))
+        assertEquals("Bearer gsk_nueva", server.takeRequest().getHeader("Authorization"))
     }
 
     @Test

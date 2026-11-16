@@ -12,12 +12,21 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.englishtutor.app.BuildConfig
@@ -92,13 +101,40 @@ fun SettingsContent(settings: TutorSettings, update: ((TutorSettings) -> TutorSe
                 }
             }
 
-            Section("API key")
-            Text(
-                if (BuildConfig.GROQ_API_KEY.isBlank()) "❌ Falta GROQ_API_KEY en local.properties"
-                else "✅ Configurada (termina en …${BuildConfig.GROQ_API_KEY.takeLast(4)})",
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Section("API key de Groq")
+            ApiKeyEditor(settings.apiKey) { key -> update { it.copy(apiKey = key) } }
         }
+    }
+}
+
+/** Campo para pegar la key en el celular. Se guarda solo en el teléfono (DataStore de la app). */
+@Composable
+private fun ApiKeyEditor(savedKey: String, onSave: (String) -> Unit) {
+    var text by rememberSaveable(savedKey) { mutableStateOf(savedKey) }
+    var visible by rememberSaveable { mutableStateOf(false) }
+    val effective = savedKey.ifBlank { BuildConfig.GROQ_API_KEY }
+
+    Text(
+        when {
+            savedKey.isNotBlank() -> "✅ Guardada en el teléfono (termina en …${savedKey.takeLast(4)})"
+            BuildConfig.GROQ_API_KEY.isNotBlank() -> "✅ Usando la de local.properties (termina en …${effective.takeLast(4)})"
+            else -> "❌ Falta la key. Créala gratis en console.groq.com/keys y pégala aquí."
+        },
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    OutlinedTextField(
+        value = text,
+        onValueChange = { text = it.trim() },
+        label = { Text("gsk_…") },
+        singleLine = true,
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+    )
+    Row {
+        TextButton(onClick = { visible = !visible }) { Text(if (visible) "Ocultar" else "Mostrar") }
+        TextButton(onClick = { onSave(text) }, enabled = text != savedKey) { Text("Guardar") }
+        if (savedKey.isNotBlank()) TextButton(onClick = { text = ""; onSave("") }) { Text("Borrar") }
     }
 }
 

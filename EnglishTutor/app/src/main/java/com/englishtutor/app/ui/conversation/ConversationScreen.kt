@@ -132,6 +132,9 @@ fun ConversationContent(
                 }
             }
 
+            if (state.apiKeyMissing) {
+                Banner("🔑 Falta tu API key de Groq: agrégala en Ajustes.", MaterialTheme.colorScheme.errorContainer, onDismiss = null)
+            }
             state.notice?.let { Banner(it, MaterialTheme.colorScheme.secondaryContainer, onDismissNotice) }
             state.error?.let { Banner(it, MaterialTheme.colorScheme.errorContainer, onDismissError) }
 
@@ -235,15 +238,15 @@ private fun StatusLabel(status: TutorStatus) {
 }
 
 @Composable
-private fun Banner(message: String, color: Color, onDismiss: () -> Unit) {
+private fun Banner(message: String, color: Color, onDismiss: (() -> Unit)?) {
     Surface(
         color = color,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
         shape = RoundedCornerShape(12.dp),
     ) {
         Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(message, Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("OK") }
+            Text(message, Modifier.weight(1f).padding(vertical = 12.dp))
+            if (onDismiss != null) TextButton(onClick = onDismiss) { Text("OK") }
         }
     }
 }

@@ -22,10 +22,22 @@ android {
         applicationId = "com.englishtutor.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "1.0"
 
         buildConfigField("String", "GROQ_API_KEY", "\"${localProps.getProperty("GROQ_API_KEY", "")}\"")
+    }
+
+    // Llave de firma de debug fija (incluida en el repo; usa las claves públicas estándar de debug).
+    // Así el APK compilado en la nube y el compilado en tu PC se pueden actualizar entre sí
+    // sin desinstalar (y sin perder tus datos).
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {

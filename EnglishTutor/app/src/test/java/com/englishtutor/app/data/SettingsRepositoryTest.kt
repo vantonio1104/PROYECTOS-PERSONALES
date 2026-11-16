@@ -13,6 +13,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /** DataStore funciona en la JVM: se prueba con un archivo temporal. */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class SettingsRepositoryTest {
 
     @get:Rule
@@ -50,6 +51,16 @@ class SettingsRepositoryTest {
         assertEquals(90, s.dailyGoalMinutes)
         assertEquals(VoiceEngine.ORPHEUS, s.voiceEngine)
         assertEquals("troy", s.orpheusVoice)
+    }
+
+    @Test
+    fun `la API key de Ajustes tiene prioridad sobre local properties`() = testScope.runTest {
+        assertEquals("gsk_local", repository.settings.first().effectiveApiKey(buildKey = "gsk_local"))
+        repository.update { it.copy(apiKey = "  gsk_telefono  ") }
+        val s = repository.settings.first()
+        assertEquals("gsk_telefono", s.apiKey) // se guarda sin espacios
+        assertEquals("gsk_telefono", s.effectiveApiKey(buildKey = "gsk_local"))
+        assertEquals(false, s.toString().contains("gsk_telefono")) // no se filtra en logs
     }
 
     @Test

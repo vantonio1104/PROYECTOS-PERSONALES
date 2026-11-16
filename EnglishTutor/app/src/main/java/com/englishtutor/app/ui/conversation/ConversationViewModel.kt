@@ -47,6 +47,8 @@ data class ConversationUiState(
     val myWords: List<String> = emptyList(),
     val todayMinutes: Int = 0,
     val goalMinutes: Int = 60,
+    /** No hay key ni en Ajustes ni en local.properties. */
+    val apiKeyMissing: Boolean = false,
 ) {
     val busy get() = status == TutorStatus.Transcribing || status == TutorStatus.Thinking
 }
@@ -57,13 +59,11 @@ class ConversationViewModel(
     private val recorder: VoiceRecorder,
     private val androidVoice: TutorVoice,
     private val orpheusVoice: TutorVoice,
-    apiKeyMissing: Boolean = BuildConfig.GROQ_API_KEY.isBlank(),
+    private val buildApiKey: String = BuildConfig.GROQ_API_KEY,
     todayStart: Long = startOfToday(),
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(
-        ConversationUiState(error = if (apiKeyMissing) "Falta GROQ_API_KEY en local.properties" else null)
-    )
+    private val _state = MutableStateFlow(ConversationUiState())
     val state: StateFlow<ConversationUiState> = _state.asStateFlow()
 
     private var settings = TutorSettings()
@@ -79,6 +79,7 @@ class ConversationViewModel(
                 _state.update {
                     it.copy(
                         goalMinutes = s.dailyGoalMinutes,
+                        apiKeyMissing = s.effectiveApiKey(buildApiKey).isBlank(),
                         // El escenario por defecto solo se aplica al abrir la app (no pisa tu elección)
                         scenario = if (!settingsLoaded && !it.sessionStarted) s.defaultScenario else it.scenario,
                     )

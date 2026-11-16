@@ -63,8 +63,8 @@ class ConversationViewModelTest {
         db.close()
     }
 
-    private fun createVm(orpheus: FakeVoice = FakeVoice(), apiKeyMissing: Boolean = false) =
-        ConversationViewModel(repository, settings, recorder, androidVoice, orpheus, apiKeyMissing, todayStart = 0L)
+    private fun createVm(orpheus: FakeVoice = FakeVoice(), buildApiKey: String = "gsk_local") =
+        ConversationViewModel(repository, settings, recorder, androidVoice, orpheus, buildApiKey, todayStart = 0L)
 
     @Test
     fun `turno completo - graba, transcribe, responde, corrige, guarda y habla`() = runTest(dispatcher) {
@@ -185,9 +185,21 @@ class ConversationViewModelTest {
     }
 
     @Test
-    fun `sin API key se avisa desde el inicio`() = runTest(dispatcher) {
-        val vm = createVm(apiKeyMissing = true)
-        assertTrue(vm.state.value.error!!.contains("GROQ_API_KEY"))
+    fun `sin API key se avisa y el aviso desaparece al guardarla en Ajustes`() = runTest(dispatcher) {
+        val vm = createVm(buildApiKey = "")
+        advanceUntilIdle()
+        assertTrue(vm.state.value.apiKeyMissing)
+
+        settings.value = TutorSettings(apiKey = "gsk_desde_ajustes")
+        advanceUntilIdle()
+        assertFalse(vm.state.value.apiKeyMissing)
+    }
+
+    @Test
+    fun `con la key de local properties no hay aviso`() = runTest(dispatcher) {
+        val vm = createVm(buildApiKey = "gsk_local")
+        advanceUntilIdle()
+        assertFalse(vm.state.value.apiKeyMissing)
     }
 
     @Test

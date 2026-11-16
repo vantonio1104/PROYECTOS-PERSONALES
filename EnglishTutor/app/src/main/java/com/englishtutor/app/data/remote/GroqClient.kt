@@ -18,13 +18,16 @@ object GroqClient {
         isLenient = true
     }
 
-    /** baseUrl y apiKey son parámetros para que los tests puedan usar un servidor falso. */
-    fun create(baseUrl: String = BASE_URL, apiKey: String = BuildConfig.GROQ_API_KEY): GroqApi {
+    /**
+     * apiKey se pide en cada petición (puede cambiar en Ajustes sin reiniciar la app).
+     * baseUrl es parámetro para que los tests usen un servidor falso.
+     */
+    fun create(baseUrl: String = BASE_URL, apiKey: () -> String = { BuildConfig.GROQ_API_KEY }): GroqApi {
         val okHttp = OkHttpClient.Builder()
             // Agrega "Authorization: Bearer <key>" a cada petición
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder()
-                    .header("Authorization", "Bearer $apiKey")
+                    .header("Authorization", "Bearer ${apiKey()}")
                     .build()
                 chain.proceed(request)
             }

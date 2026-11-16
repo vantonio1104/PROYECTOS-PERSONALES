@@ -189,7 +189,7 @@ class TutorRepository(
     }
 
     private fun httpMessage(code: Int) = when (code) {
-        401 -> "API key inválida. Revisa GROQ_API_KEY en local.properties."
+        401 -> "API key inválida o vacía. Revísala en Ajustes."
         429 -> "Llegaste al límite por minuto del plan gratis. Espera unos segundos y vuelve a intentar."
         400 -> "Groq rechazó la petición (400). Quizás el audio era muy corto."
         in 500..599 -> "Groq tiene problemas ahora mismo ($code). Intenta de nuevo."
