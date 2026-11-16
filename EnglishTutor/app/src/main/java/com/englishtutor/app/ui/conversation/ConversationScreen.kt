@@ -117,13 +117,14 @@ fun ConversationContent(
                         StartPanel(
                             selected = state.scenario,
                             review = state.review,
+                            myWords = state.myWords,
                             enabled = !state.busy,
                             onSelectScenario = onSelectScenario,
                             onStart = onStartConversation,
                         )
                     }
-                } else if (state.review.isNotEmpty()) {
-                    item { ReviewCard(state.review) }
+                } else if (state.review.isNotEmpty() || state.myWords.isNotEmpty()) {
+                    item { ReviewCard(state.review, state.myWords) }
                 }
                 items(state.messages, key = { it.id }) { msg ->
                     if (msg.role == ChatRole.USER) UserMessageWithCorrections(msg.text, msg.corrections)
@@ -158,6 +159,7 @@ private fun DailyProgress(minutes: Int, goal: Int) {
 private fun StartPanel(
     selected: Scenario,
     review: List<FrequentError>,
+    myWords: List<String>,
     enabled: Boolean,
     onSelectScenario: (Scenario) -> Unit,
     onStart: () -> Unit,
@@ -177,7 +179,11 @@ private fun StartPanel(
                 Text("${scenario.emoji}  ${scenario.title}", Modifier.padding(start = 8.dp))
             }
         }
-        if (review.isNotEmpty()) ReviewCard(review)
+        if (review.isNotEmpty() || myWords.isNotEmpty()) ReviewCard(review, myWords)
+        Text(
+            "💡 En cualquier momento di \"guarda la palabra …\" o \"save the word …\" y quedará en Mis palabras.",
+            style = MaterialTheme.typography.bodySmall,
+        )
         Button(onClick = onStart, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
             Text("Que el tutor empiece")
         }
@@ -189,14 +195,17 @@ private fun StartPanel(
     }
 }
 
-/** Fase 3: errores frecuentes que el tutor te hará practicar en esta sesión. */
+/** Fase 3: errores frecuentes y palabras difíciles que el tutor te hará practicar en esta sesión. */
 @Composable
-fun ReviewCard(review: List<FrequentError>) {
+fun ReviewCard(review: List<FrequentError>, myWords: List<String> = emptyList()) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
         Column(Modifier.fillMaxWidth().padding(12.dp)) {
             Text("📌 Hoy repasamos", fontWeight = FontWeight.Bold)
             review.forEach {
                 Text("• ${it.better}  (no \"${it.original}\")", style = MaterialTheme.typography.bodyMedium)
+            }
+            if (myWords.isNotEmpty()) {
+                Text("⭐ Palabras para usar: ${myWords.joinToString(", ")}", style = MaterialTheme.typography.bodyMedium)
             }
         }
     }

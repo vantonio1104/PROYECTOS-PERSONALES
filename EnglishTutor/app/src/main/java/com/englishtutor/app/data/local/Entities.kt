@@ -53,7 +53,10 @@ data class CorrectionEntity(
     val explanation: String,
 )
 
-/** Vocabulario nuevo. "term" es único sin importar mayúsculas: si el tutor repite una palabra, no se duplica. */
+/**
+ * Vocabulario. "term" es único sin importar mayúsculas: si una palabra se repite, no se duplica.
+ * isMine = true: palabra que TÚ pediste guardar porque te cuesta ("Mis palabras").
+ */
 @Entity(tableName = "vocab", indices = [Index(value = ["term"], unique = true)])
 data class VocabEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -62,4 +65,5 @@ data class VocabEntity(
     val example: String,
     val createdAt: Long,
     val timesReviewed: Int = 0,
+    @ColumnInfo(defaultValue = "0") val isMine: Boolean = false,
 )

@@ -8,13 +8,15 @@ data class TutorReply(
     val reply: String,
     val corrections: List<Correction> = emptyList(),
     val new_vocab: List<Vocab> = emptyList(),
+    /** Palabras que pediste guardar ("guarda la palabra ..."). */
+    val saved_words: List<Vocab> = emptyList(),
 )
 
 @Serializable
 data class Correction(val original: String, val better: String, val explanation: String)
 
 @Serializable
-data class Vocab(val term: String, val meaning: String, val example: String = "")
+data class Vocab(val term: String, val meaning: String = "", val example: String = "")
 
 enum class Role { USER, ASSISTANT }
 

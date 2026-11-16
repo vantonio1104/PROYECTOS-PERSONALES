@@ -65,6 +65,26 @@ interface TutorDao {
     @Query("SELECT * FROM vocab ORDER BY createdAt DESC, id DESC")
     fun observeVocab(): Flow<List<VocabEntity>>
 
+    /** Devuelve el id nuevo, o -1 si la palabra ya existía. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertVocabIfNew(vocab: VocabEntity): Long
+
+    /** Marca una palabra existente como tuya; actualiza significado/ejemplo solo si vienen con texto. */
+    @Query(
+        """UPDATE vocab SET isMine = 1,
+           meaning = CASE WHEN :meaning != '' THEN :meaning ELSE meaning END,
+           example = CASE WHEN :example != '' THEN :example ELSE example END
+           WHERE term = :term"""
+    )
+    suspend fun markMine(term: String, meaning: String, example: String)
+
+    @Query("UPDATE vocab SET isMine = :mine WHERE id = :id")
+    suspend fun setMine(id: Long, mine: Boolean)
+
+    /** Las palabras que te cuestan, las menos repasadas primero (para practicarlas). */
+    @Query("SELECT * FROM vocab WHERE isMine = 1 ORDER BY timesReviewed ASC, createdAt DESC LIMIT :limit")
+    fun observeMyWordsToPractice(limit: Int): Flow<List<VocabEntity>>
+
     @Query("UPDATE vocab SET timesReviewed = timesReviewed + 1 WHERE id = :id")
     suspend fun markVocabReviewed(id: Long)
 

@@ -10,8 +10,9 @@ App Android personal para practicar inglés **hablando** con un tutor de IA (Gro
 | 2 | Room (sesiones, mensajes, correcciones, vocabulario), tarjetas de corrección, Historial, Vocabulario/Errores, Ajustes | ✅ compila + pruebas automáticas |
 | 3 | Escenarios de roleplay y repaso de errores frecuentes al inicio | ✅ compila + pruebas automáticas |
 | 4 | Contador de minutos diarios con meta + voz Orpheus opcional (de pago) | ✅ compila + pruebas automáticas |
+| Extra | **⭐ Mis palabras**: di "guarda la palabra …" y se guarda con su significado; el tutor las practica contigo | ✅ compila + pruebas automáticas |
 
-> ⚠️ Todo fue desarrollado y probado **sin celular** (51 pruebas automáticas en la JVM). Falta la prueba manual en un dispositivo real: ver la lista de abajo.
+> ⚠️ Todo fue desarrollado y probado **sin celular** (68 pruebas automáticas en la JVM). Falta la prueba manual en un dispositivo real: ver la lista de abajo.
 
 ## Estructura
 
@@ -52,7 +53,19 @@ app/src/test/java/com/englishtutor/app/   # Pruebas automáticas (ver abajo)
 2. En `local.properties` agrega `GROQ_API_KEY=gsk_...` (ver `local.properties.example`; el archivo está en `.gitignore`).
 3. *Build → Rebuild Project* y ejecuta en el celular.
 
-> Si alguna vez instalaste la versión del paso 2.1 (commit `f9558a1`), **desinstala la app una vez** antes de instalar esta: la tabla `vocab` cambió y Room no puede abrir la base de datos antigua con la misma versión.
+> La base de datos va en la **versión 2** (columna `isMine` para Mis palabras). Desde la versión 1 de `c5f8cc7` se actualiza sola sin perder datos (migración probada en `MigrationTest`). Solo si instalaste el commit `f9558a1` (paso 2.1) tendrás que **desinstalar la app una vez**.
+
+## ⭐ Mis palabras (palabras que te cuestan)
+
+Hay 3 formas de guardar una palabra en la pestaña **Vocabulario → ⭐ Mis palabras**:
+
+1. **Hablando**, en medio de la conversación: *"guarda la palabra though"* o *"save the word though"*. El tutor la reconoce (no la toma como error), la guarda con su **significado en español y un ejemplo**, te lo confirma en voz alta y sigue conversando. Aparece el aviso "⭐ Guardado en Mis palabras: though (aunque)".
+2. **Escribiéndola**: botón **+** arriba → escribe la palabra → el tutor busca el significado y un ejemplo (corrige la ortografía si te equivocas).
+3. **Con la estrella ☆** en una palabra de la pestaña "Del tutor".
+
+Al iniciar cada sesión, el tutor recibe tus 5 palabras menos repasadas, las usa en la conversación y te invita a usarlas ("⭐ Palabras para usar" en la tarjeta de repaso). Con ✓ marcas una palabra como repasada; las más repasadas dejan lugar a las demás.
+
+Cómo funciona: el contrato JSON del tutor tiene un campo extra `saved_words` (mismo formato que `new_vocab`). Se detecta con el LLM y no con una frase exacta, porque Whisper está configurado en inglés y puede transcribir "guarda la palabra" de forma imperfecta.
 
 ## Pruebas automáticas (sin celular)
 
@@ -64,12 +77,16 @@ En Android Studio: clic derecho en `app/src/test` → **Run 'Tests in…'**. Rep
 
 | Archivo | Qué prueba | Tests |
 |---|---|---|
-| `TutorRepositoryNetworkTest` | Peticiones reales contra un **servidor HTTP falso** (MockWebServer): formato del chat, `json_object`, API key, historial de 20 mensajes, mensaje de inicio, JSON mal formado, reintento 429, errores 401/5xx/sin red, multipart de Whisper, Orpheus WAV | 13 |
-| `TutorRepositoryPersistenceTest` | Room en memoria: turno completo, vocabulario sin duplicados, repasadas, errores frecuentes agrupados, borrado en cascada, minutos practicados, orden del historial | 8 |
-| `ConversationViewModelTest` | Flujo completo con micrófono/voces falsas: estados, correcciones, guardado, escenario, modelo y nivel de ajustes, grabación corta, transcripción vacía, error y recuperación, Orpheus y su respaldo, nueva sesión, repaso de errores, contador diario | 14 |
-| `ComposeUiTest` | Pantallas dibujadas con Robolectric: tarjeta que se expande, inicio (escenarios, repaso, progreso), chat con correcciones y error, ajustes | 5 |
+| `TutorRepositoryNetworkTest` | Peticiones reales contra un **servidor HTTP falso** (MockWebServer): formato del chat, `json_object`, API key, historial de 20 mensajes, mensaje de inicio, JSON mal formado, reintento 429, errores 401/5xx/sin red, multipart de Whisper, Orpheus WAV, `saved_words`, buscar significado | 16 |
+| `TutorRepositoryPersistenceTest` | Room en memoria: turno completo, vocabulario sin duplicados, repasadas, errores frecuentes agrupados, borrado en cascada, minutos practicados, orden del historial, Mis palabras | 12 |
+| `ConversationViewModelTest` | Flujo completo con micrófono/voces falsas: estados, correcciones, guardado, escenario, modelo y nivel de ajustes, grabación corta, transcripción vacía, error y recuperación, Orpheus y su respaldo, nueva sesión, repaso de errores, contador diario, "guarda la palabra", palabras difíciles en el prompt | 16 |
+| `VocabViewModelTest` | Agregar palabra a mano (éxito y error), separar Mis palabras / Del tutor, estrella | 3 |
+| `ComposeUiTest` | Pantallas dibujadas con Robolectric: tarjeta que se expande, inicio (escenarios, repaso, progreso), chat con correcciones y error, ajustes, Mis palabras | 6 |
+| `MigrationTest` | Actualizar la base de datos v1 → v2 conserva los datos | 1 |
 | `SettingsRepositoryTest` | DataStore: valores por defecto, guardar/leer, valores inválidos | 3 |
-| `TutorPromptTest`, `TextChunkerTest` | System prompt y división de texto | 8 |
+| `TutorPromptTest`, `TextChunkerTest` | System prompt y división de texto | 11 |
+
+> El diálogo "Agregar palabra" no tiene prueba de pantalla: en Robolectric, cualquier `AlertDialog` de Material 3 con un campo de texto se queda esperando para siempre (lo comprobé con un ejemplo mínimo, sin código de la app). Su lógica sí está probada en `VocabViewModelTest`; pruébalo a mano en el celular.
 
 Las piezas falsas (API de Groq, micrófono, voces, base en memoria) están en `TestFixtures.kt`.
 
@@ -92,6 +109,12 @@ Filtra Logcat por el tag **`Tutor`** (verás `Whisper: "..."` y `LLM raw: {...}`
 - [ ] Vocabulario → "Palabras": términos nuevos; ✓ suma "Repasada N veces"; 🗑 borra.
 - [ ] Vocabulario → "Errores frecuentes": ordenados por cantidad de veces.
 - [ ] Opcional: *App Inspection → Database Inspector* → `english_tutor.db`.
+
+**⭐ Mis palabras**
+- [ ] Conversando, di *"save the word though"* (o *"guarda la palabra though"*) → el tutor confirma, sigue la charla, aparece el aviso ⭐ y la palabra está en Vocabulario → Mis palabras con su significado.
+- [ ] Botón **+** → escribe *"thorough"* → aparece con significado y ejemplo. Prueba también una palabra mal escrita.
+- [ ] En "Del tutor", toca ☆ → la palabra pasa a Mis palabras. Toca ⭐ → vuelve.
+- [ ] Nueva sesión → la tarjeta de repaso muestra "⭐ Palabras para usar" y el tutor las usa.
 
 **Ajustes y Fase 4**
 - [ ] Cambiar nivel, modelo (`openai/gpt-oss-120b`) y velocidad de voz → se nota en la siguiente respuesta.

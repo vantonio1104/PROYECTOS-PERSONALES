@@ -43,6 +43,8 @@ data class ConversationUiState(
     val sessionStarted: Boolean = false,
     /** Errores frecuentes que se repasan en esta sesión (Fase 3). */
     val review: List<FrequentError> = emptyList(),
+    /** Tus palabras difíciles ("Mis palabras") que el tutor usará en esta sesión. */
+    val myWords: List<String> = emptyList(),
     val todayMinutes: Int = 0,
     val goalMinutes: Int = 60,
 ) {
@@ -175,7 +177,7 @@ class ConversationViewModel(
         val s = _state.value
         val reply = repository.chat(
             history = s.messages,
-            systemPrompt = TutorPrompt.build(settings.level, s.scenario, s.review),
+            systemPrompt = TutorPrompt.build(settings.level, s.scenario, s.review, s.myWords),
             model = settings.llmModel,
         )
         _state.update { st ->
@@ -187,6 +189,11 @@ class ConversationViewModel(
             st.copy(messages = msgs + ChatMessage(nextId++, Role.ASSISTANT, reply.reply))
         }
         repository.saveTutorTurn(session, userMessageId, reply)
+        val saved = reply.saved_words.filter { it.term.isNotBlank() }
+        if (saved.isNotEmpty()) {
+            val words = saved.joinToString(", ") { if (it.meaning.isBlank()) it.term else "${it.term} (${it.meaning})" }
+            _state.update { it.copy(notice = "⭐ Guardado en Mis palabras: $words") }
+        }
 
         setStatus(TutorStatus.Speaking)
         speak(reply.reply)
@@ -229,10 +236,12 @@ class ConversationViewModel(
         }
     }
 
+    /** Al iniciar una sesión: errores frecuentes y palabras difíciles a practicar. */
     private fun loadReview() {
         viewModelScope.launch {
             val review = runCatching { repository.frequentErrors(REVIEW_SIZE) }.getOrDefault(emptyList())
-            _state.update { if (it.sessionStarted) it else it.copy(review = review) }
+            val myWords = runCatching { repository.myWordsToPractice(MY_WORDS_SIZE) }.getOrDefault(emptyList()).map { it.term }
+            _state.update { if (it.sessionStarted) it else it.copy(review = review, myWords = myWords) }
         }
     }
 
@@ -260,6 +269,7 @@ class ConversationViewModel(
     companion object {
         private const val TAG = "Tutor"
         const val REVIEW_SIZE = 3
+        const val MY_WORDS_SIZE = 5
 
         fun startOfToday(): Long =
             LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()

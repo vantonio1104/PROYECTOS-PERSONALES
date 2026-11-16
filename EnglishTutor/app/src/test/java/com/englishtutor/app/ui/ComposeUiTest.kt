@@ -125,4 +125,28 @@ class ComposeUiTest {
         compose.onNodeWithText(VoiceEngine.ORPHEUS.label).performScrollTo().performClick()
         assertEquals(VoiceEngine.ORPHEUS, settings.voiceEngine)
     }
+
+    @Test
+    fun mis_palabras_muestra_la_lista_y_la_estrella_funciona() {
+        var starred: Pair<Long, Boolean>? = null
+        val actions = object : com.englishtutor.app.ui.vocab.VocabActions {
+            override fun addWord(term: String) {}
+            override fun clearAddState() {}
+            override fun markReviewed(id: Long) {}
+            override fun setMine(id: Long, mine: Boolean) { starred = id to mine }
+            override fun delete(id: Long) {}
+        }
+        val word = com.englishtutor.app.data.local.VocabEntity(1, "though", "aunque", "Nice, though.", 0, isMine = true)
+        compose.setContent {
+            com.englishtutor.app.ui.vocab.VocabContent(listOf(word), emptyList(), emptyList(), com.englishtutor.app.ui.vocab.AddWordState(), actions)
+        }
+        compose.onNodeWithText("⭐ Mis palabras (1)").assertIsDisplayed()
+        compose.onNodeWithText("aunque").assertIsDisplayed()
+
+        compose.onNodeWithContentDescription("Quitar de Mis palabras").performClick()
+        assertEquals(1L to false, starred)
+        compose.onNodeWithContentDescription("Agregar palabra").assertIsDisplayed()
+        // No abrimos el diálogo: en Robolectric un AlertDialog con campo de texto nunca queda "en reposo"
+        // (limitación del entorno de pruebas). Agregar palabras se prueba en VocabViewModelTest.
+    }
 }

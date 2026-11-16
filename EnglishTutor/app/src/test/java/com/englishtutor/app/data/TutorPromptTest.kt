@@ -36,6 +36,27 @@ class TutorPromptTest {
     }
 
     @Test
+    fun `explica como guardar palabras y pide saved_words en el JSON`() {
+        val prompt = TutorPrompt.build()
+        assertTrue(prompt.contains("guarda la palabra X"))
+        assertTrue(prompt.contains(""""saved_words": [{"term": "...", "meaning": "...", "example": "..."}]"""))
+        assertFalse(prompt.contains("Words I find difficult"))
+    }
+
+    @Test
+    fun `incluye mis palabras dificiles para practicarlas`() {
+        val prompt = TutorPrompt.build(myWords = listOf("though", "thorough"))
+        assertTrue(prompt.contains("Words I find difficult: though, thorough."))
+    }
+
+    @Test
+    fun `el prompt de diccionario pide significado en espanol`() {
+        val prompt = TutorPrompt.define("though")
+        assertTrue(prompt.contains("\"though\""))
+        assertTrue(prompt.contains("español"))
+    }
+
+    @Test
     fun `ids desconocidos vuelven al valor por defecto`() {
         assertEquals(Scenario.FREE_TALK, Scenario.fromId("no-existe"))
         assertEquals(Scenario.JOB_INTERVIEW, Scenario.fromId("job_interview"))

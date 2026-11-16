@@ -79,6 +79,30 @@ class TutorRepositoryNetworkTest {
     }
 
     @Test
+    fun `entiende saved_words cuando pides guardar una palabra`() = runTest {
+        server.enqueue(chatResponse("""{"reply":"Saved! Anyway...","corrections":[],"new_vocab":[],"saved_words":[{"term":"though","meaning":"aunque","example":"Nice, though."}]}"""))
+        val reply = repository.chat(history(1))
+        assertEquals(Vocab("though", "aunque", "Nice, though."), reply.saved_words.single())
+    }
+
+    @Test
+    fun `defineWord obtiene significado y ejemplo`() = runTest {
+        server.enqueue(chatResponse("""{"term":"though","meaning":"aunque, sin embargo","example":"It was hard, though."}"""))
+        val word = repository.defineWord("thogh", model = "openai/gpt-oss-120b")
+        assertEquals("though", word.term)
+        assertEquals("aunque, sin embargo", word.meaning)
+        val body = lastRequestJson()
+        assertEquals("openai/gpt-oss-120b", body["model"]!!.jsonPrimitive.content)
+        assertTrue(body["messages"]!!.jsonArray[0].jsonObject["content"]!!.jsonPrimitive.content.contains("\"thogh\""))
+    }
+
+    @Test
+    fun `defineWord con respuesta invalida muestra un error claro`() = runTest {
+        server.enqueue(chatResponse("no idea"))
+        assertTrue(expectTutorException { repository.defineWord("xyz") }.message!!.contains("significado"))
+    }
+
+    @Test
     fun `con historial vacio el tutor abre la conversacion`() = runTest {
         server.enqueue(chatResponse(tutorJson(reply = "Hi! Table for one?")))
         repository.chat(emptyList())

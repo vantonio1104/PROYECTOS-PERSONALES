@@ -264,6 +264,33 @@ class ConversationViewModelTest {
     }
 
     @Test
+    fun `decir guarda la palabra la deja en Mis palabras y avisa`() = runTest(dispatcher) {
+        api.transcription = "Save the word though"
+        api.chatReplies += """{"reply":"Done! Anyway, how was work?","corrections":[],"new_vocab":[],"saved_words":[{"term":"though","meaning":"aunque","example":"Nice, though."}]}"""
+        val vm = createVm()
+        advanceUntilIdle()
+        vm.onPressMic(); vm.onReleaseMic()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.notice!!.contains("though (aunque)"))
+        val word = repository.observeVocab().first().single()
+        assertTrue(word.isMine)
+        assertEquals("aunque", word.meaning)
+    }
+
+    @Test
+    fun `mis palabras dificiles se cargan al empezar y van en el prompt`() = runTest(dispatcher) {
+        repository.saveMyWord(com.englishtutor.app.data.Vocab("though", "aunque"))
+        val vm = createVm()
+        advanceUntilIdle()
+        assertEquals(listOf("though"), vm.state.value.myWords)
+
+        vm.startConversation()
+        advanceUntilIdle()
+        assertTrue(api.chatRequests.single().messages[0].content.contains("Words I find difficult: though."))
+    }
+
+    @Test
     fun `presionar mientras habla interrumpe al tutor`() = runTest(dispatcher) {
         val vm = createVm()
         advanceUntilIdle()

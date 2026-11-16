@@ -63,7 +63,21 @@ class TutorRepository(
         dao.insertVocab(reply.new_vocab.filter { it.term.isNotBlank() }.map {
             VocabEntity(term = it.term.trim(), meaning = it.meaning.trim(), example = it.example.trim(), createdAt = now)
         })
+        reply.saved_words.forEach { saveMyWord(it) }
         dao.updateSessionEnd(sessionId, now) // la sesión "termina" en tu último turno
+    }
+
+    /**
+     * Guarda una palabra en "Mis palabras". Si ya existía (por ejemplo, la enseñó el tutor),
+     * solo la marca como tuya y actualiza su significado.
+     */
+    suspend fun saveMyWord(word: Vocab) {
+        val term = word.term.trim()
+        if (term.isEmpty()) return
+        val meaning = word.meaning.trim()
+        val example = word.example.trim()
+        val id = dao.insertVocabIfNew(VocabEntity(term = term, meaning = meaning, example = example, createdAt = clock(), isMine = true))
+        if (id == -1L) dao.markMine(term, meaning, example)
     }
 
     fun observeSessions(): Flow<List<SessionSummary>> = dao.observeSessionSummaries()
@@ -74,6 +88,10 @@ class TutorRepository(
     fun observeVocab(): Flow<List<VocabEntity>> = dao.observeVocab()
     suspend fun markVocabReviewed(id: Long) = dao.markVocabReviewed(id)
     suspend fun deleteVocab(id: Long) = dao.deleteVocab(id)
+    suspend fun setMine(id: Long, mine: Boolean) = dao.setMine(id, mine)
+
+    /** Tus palabras difíciles, las menos repasadas primero. */
+    suspend fun myWordsToPractice(limit: Int): List<VocabEntity> = dao.observeMyWordsToPractice(limit).first()
 
     fun observeFrequentErrors(limit: Int = 50): Flow<List<FrequentError>> = dao.observeFrequentErrors(limit)
     suspend fun frequentErrors(limit: Int): List<FrequentError> = dao.observeFrequentErrors(limit).first()
@@ -118,6 +136,18 @@ class TutorRepository(
             .choices.firstOrNull()?.message?.content.orEmpty()
         Log.d(TAG, "LLM raw: $content")
         parseReply(content)
+    }
+
+    /** Busca con el LLM el significado en español de una palabra que agregas a mano. */
+    suspend fun defineWord(term: String, model: String = TutorSettings.LLM_MODELS.first()): Vocab = withRetry {
+        val request = ChatRequest(model = model, messages = listOf(ApiMessage("user", TutorPrompt.define(term.trim()))))
+        val content = api.chat(request).choices.firstOrNull()?.message?.content.orEmpty()
+        Log.d(TAG, "Definición: $content")
+        val parsed = runCatching { GroqClient.json.decodeFromString(Vocab.serializer(), content) }.getOrNull()
+        if (parsed == null || parsed.term.isBlank() || parsed.meaning.isBlank()) {
+            throw TutorException("No pude obtener el significado de \"$term\". Intenta de nuevo.")
+        }
+        parsed
     }
 
     /** Texto (máx. 200 caracteres) → archivo WAV con la voz de Orpheus. */

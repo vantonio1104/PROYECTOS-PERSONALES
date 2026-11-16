@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -139,6 +140,55 @@ class TutorRepositoryPersistenceTest {
         repository.startSession()
 
         assertEquals(300_000L, repository.observePracticeMillisSince(startOfDay).first())
+    }
+
+    @Test
+    fun `guardar una palabra nueva la deja en Mis palabras`() = runTest {
+        repository.saveMyWord(Vocab(" though ", "aunque", "I'm tired, though."))
+        val word = repository.observeVocab().first().single()
+        assertEquals("though", word.term)
+        assertEquals("aunque", word.meaning)
+        assertTrue(word.isMine)
+    }
+
+    @Test
+    fun `guardar una palabra que ya enseno el tutor solo la marca como mia`() = runTest {
+        val session = repository.startSession()
+        repository.saveTutorTurn(session, null, TutorReply("a", new_vocab = listOf(Vocab("Thorough", "minucioso", "old example"))))
+        assertFalse(repository.observeVocab().first().single().isMine)
+
+        repository.saveMyWord(Vocab("thorough", "", "A thorough review.")) // sin significado: se conserva el anterior
+        val word = repository.observeVocab().first().single()
+        assertTrue(word.isMine)
+        assertEquals("minucioso", word.meaning)
+        assertEquals("A thorough review.", word.example)
+    }
+
+    @Test
+    fun `el tutor guarda las palabras pedidas en la conversacion`() = runTest {
+        val session = repository.startSession()
+        val msg = repository.saveUserMessage(session, "Save the word though")
+        repository.saveTutorTurn(session, msg, TutorReply("Done!", saved_words = listOf(Vocab("though", "aunque"), Vocab("  "))))
+        val words = repository.observeVocab().first()
+        assertEquals(listOf("though"), words.map { it.term })
+        assertTrue(words.single().isMine)
+    }
+
+    @Test
+    fun `mis palabras para practicar son las menos repasadas`() = runTest {
+        repository.saveMyWord(Vocab("though", "aunque"))
+        now += 1
+        repository.saveMyWord(Vocab("thorough", "minucioso"))
+        now += 1
+        repository.saveTutorTurn(repository.startSession(), null, TutorReply("a", new_vocab = listOf(Vocab("gist", "idea"))))
+        val though = repository.observeVocab().first().first { it.term == "though" }
+        repository.markVocabReviewed(though.id)
+
+        assertEquals(listOf("thorough", "though"), repository.myWordsToPractice(5).map { it.term })
+        assertEquals(1, repository.myWordsToPractice(1).size)
+
+        repository.setMine(though.id, false)
+        assertEquals(listOf("thorough"), repository.myWordsToPractice(5).map { it.term })
     }
 
     @Test
