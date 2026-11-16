@@ -6,6 +6,8 @@ import java.io.File
 /** Algo que graba tu voz. Interfaz para poder usar un grabador falso en los tests. */
 interface VoiceRecorder {
     fun start()
+    /** Volumen máximo (0..32767) desde la última vez que se preguntó. Sirve para detectar silencio. */
+    fun amplitude(): Int
     /** Devuelve el audio grabado, o null si fue demasiado corto o falló. */
     fun stop(): File?
 }

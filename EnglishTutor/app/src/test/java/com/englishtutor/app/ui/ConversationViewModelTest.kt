@@ -46,8 +46,10 @@ class ConversationViewModelTest {
     private lateinit var api: FakeGroqApi
     private lateinit var repository: TutorRepository
     private val recorder = FakeRecorder()
-    private val androidVoice = FakeVoice()
-    private val settings = MutableStateFlow(TutorSettings())
+    private val spokenLog = mutableListOf<String>() // orden de todo lo que se dijo: "en:" o "es:"
+    private val androidVoice = FakeVoice(log = spokenLog, tag = "en:")
+    private val spanishVoice = FakeVoice(log = spokenLog, tag = "es:")
+    private val settings = MutableStateFlow(TutorSettings(speakCorrections = false))
 
     @Before
     fun setUp() {
@@ -64,7 +66,17 @@ class ConversationViewModelTest {
     }
 
     private fun createVm(orpheus: FakeVoice = FakeVoice(), buildApiKey: String = "gsk_local") =
-        ConversationViewModel(repository, settings, recorder, androidVoice, orpheus, buildApiKey, todayStart = 0L)
+        ConversationViewModel(
+            repository = repository,
+            settingsFlow = settings,
+            recorder = recorder,
+            androidVoice = androidVoice,
+            orpheusVoice = orpheus,
+            spanishVoice = spanishVoice,
+            updateSettings = { transform -> settings.value = transform(settings.value) },
+            buildApiKey = buildApiKey,
+            todayStart = 0L,
+        )
 
     @Test
     fun `turno completo - graba, transcribe, responde, corrige, guarda y habla`() = runTest(dispatcher) {
@@ -124,7 +136,7 @@ class ConversationViewModelTest {
 
     @Test
     fun `usa el modelo y nivel de los ajustes`() = runTest(dispatcher) {
-        settings.value = TutorSettings(llmModel = "openai/gpt-oss-120b", level = com.englishtutor.app.data.Level.BASIC)
+        settings.value = settings.value.copy(llmModel = "openai/gpt-oss-120b", level = com.englishtutor.app.data.Level.BASIC)
         val vm = createVm()
         advanceUntilIdle()
         vm.onPressMic(); vm.onReleaseMic()
@@ -204,7 +216,7 @@ class ConversationViewModelTest {
 
     @Test
     fun `con Orpheus activado usa esa voz`() = runTest(dispatcher) {
-        settings.value = TutorSettings(voiceEngine = VoiceEngine.ORPHEUS)
+        settings.value = settings.value.copy(voiceEngine = VoiceEngine.ORPHEUS)
         val orpheus = FakeVoice()
         val vm = createVm(orpheus)
         advanceUntilIdle()
@@ -216,7 +228,7 @@ class ConversationViewModelTest {
 
     @Test
     fun `si Orpheus falla habla la voz de Android y avisa`() = runTest(dispatcher) {
-        settings.value = TutorSettings(voiceEngine = VoiceEngine.ORPHEUS)
+        settings.value = settings.value.copy(voiceEngine = VoiceEngine.ORPHEUS)
         val vm = createVm(orpheus = FakeVoice(error = IllegalStateException("terms not accepted")))
         advanceUntilIdle()
         vm.onPressMic(); vm.onReleaseMic()

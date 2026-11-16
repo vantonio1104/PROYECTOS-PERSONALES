@@ -79,22 +79,50 @@ class FakeGroqApi : GroqApi {
     }
 }
 
-/** Grabador falso: "graba" creando un archivo temporal (o null si simulamos un toque muy corto). */
+/**
+ * Grabador falso: "graba" creando un archivo temporal (o null si simulamos un toque muy corto).
+ * `amplitudes` es el guion de volúmenes que "oye" el micrófono (una muestra cada 100 ms; luego silencio).
+ */
 class FakeRecorder : VoiceRecorder {
     var started = 0
+    var stopped = 0
     var returnNull = false
-    override fun start() { started++ }
-    override fun stop(): File? =
-        if (returnNull) null else File.createTempFile("turn", ".m4a").apply { writeText("audio"); deleteOnExit() }
+    var startError: Exception? = null
+    val amplitudes = ArrayDeque<Int>()
+
+    /** Simula que hablas `speechMs` y luego te quedas callado. */
+    fun scriptSpeech(speechMs: Int = 1000, silenceBeforeMs: Int = 300) {
+        repeat(silenceBeforeMs / 100) { amplitudes += 50 }
+        repeat(speechMs / 100) { amplitudes += 5000 }
+    }
+
+    override fun start() { startError?.let { throw it }; started++ }
+    override fun amplitude(): Int = amplitudes.removeFirstOrNull() ?: 50
+    override fun stop(): File? {
+        stopped++
+        return if (returnNull) null else File.createTempFile("turn", ".m4a").apply { writeText("audio"); deleteOnExit() }
+    }
 }
 
 /** Voz falsa: guarda lo que "dijo". Puede simular un error (para probar el respaldo de Orpheus). */
-class FakeVoice(private val error: Exception? = null) : TutorVoice {
+class FakeVoice(private val error: Exception? = null, private val log: MutableList<String>? = null, private val tag: String = "") : TutorVoice {
     val spoken = mutableListOf<String>()
+    val rates = mutableListOf<Float>()
     var stops = 0
     override suspend fun speak(text: String, settings: TutorSettings) {
         error?.let { throw it }
         spoken += text
+        rates += settings.ttsRate
+        log?.add("$tag$text")
     }
     override fun stop() { stops++ }
+}
+
+/** DataStore en memoria (sin archivo ni hilos): cambios visibles al instante en los tests. */
+class InMemoryPreferences : androidx.datastore.core.DataStore<androidx.datastore.preferences.core.Preferences> {
+    private val state = kotlinx.coroutines.flow.MutableStateFlow(androidx.datastore.preferences.core.emptyPreferences())
+    override val data: kotlinx.coroutines.flow.Flow<androidx.datastore.preferences.core.Preferences> = state
+    override suspend fun updateData(
+        transform: suspend (t: androidx.datastore.preferences.core.Preferences) -> androidx.datastore.preferences.core.Preferences,
+    ) = transform(state.value).also { state.value = it }
 }

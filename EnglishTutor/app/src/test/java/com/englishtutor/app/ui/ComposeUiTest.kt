@@ -39,8 +39,9 @@ class ComposeUiTest {
         onSelectScenario: (Scenario) -> Unit = {},
         onStart: () -> Unit = {},
         onNewSession: () -> Unit = {},
+        onSetHandsFree: (Boolean) -> Unit = {},
     ) = compose.setContent {
-        ConversationContent(state, onSelectScenario, onStart, onNewSession, {}, {}, {}, {})
+        ConversationContent(state, onSelectScenario, onStart, onNewSession, {}, {}, {}, {}, onSetHandsFree)
     }
 
     @Test
@@ -112,9 +113,48 @@ class ComposeUiTest {
     }
 
     @Test
+    fun manos_libres_se_activa_y_muestra_que_escucha() {
+        val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+        org.robolectric.Shadows.shadowOf(app).grantPermissions(android.Manifest.permission.RECORD_AUDIO)
+        var handsFree: Boolean? = null
+        conversation(ConversationUiState(), onSetHandsFree = { handsFree = it })
+        compose.onNodeWithText("🎧 Manos libres").performClick()
+        assertEquals(true, handsFree)
+    }
+
+    @Test
+    fun manos_libres_activo_muestra_estado_y_boton_de_pausa() {
+        var handsFree: Boolean? = null
+        conversation(
+            ConversationUiState(handsFree = true, status = TutorStatus.Listening, sessionStarted = true),
+            onSetHandsFree = { handsFree = it },
+        )
+        compose.onNodeWithText("👂 Te escucho… habla cuando quieras").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Pausar manos libres").performClick()
+        assertEquals(false, handsFree)
+    }
+
+    @Test
+    fun ajustes_de_voz_correcciones_y_prueba() {
+        var settings = TutorSettings()
+        var previews = 0
+        compose.setContent {
+            SettingsContent(settings, { transform -> settings = transform(settings) }, emptyList(), { previews++ })
+        }
+        compose.onNodeWithText("▶ Probar voz").performScrollTo().performClick()
+        assertEquals(1, previews)
+
+        compose.onNodeWithText("Leer en voz alta", substring = true).performScrollTo().performClick()
+        assertEquals(false, settings.speakCorrections)
+
+        compose.onNodeWithText("Alta (hablas bajito)").performScrollTo().performClick()
+        assertEquals(com.englishtutor.app.data.MicSensitivity.HIGH, settings.micSensitivity)
+    }
+
+    @Test
     fun ajustes_cambian_al_tocar_una_opcion() {
         var settings = TutorSettings()
-        compose.setContent { SettingsContent(settings) { transform -> settings = transform(settings) } }
+        compose.setContent { SettingsContent(settings, update = { transform -> settings = transform(settings) }) }
 
         compose.onNodeWithText("Avanzado").performClick()
         assertEquals(Level.ADVANCED, settings.level)

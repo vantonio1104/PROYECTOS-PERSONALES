@@ -11,8 +11,9 @@ App Android personal para practicar inglés **hablando** con un tutor de IA (Gro
 | 3 | Escenarios de roleplay y repaso de errores frecuentes al inicio | ✅ compila + pruebas automáticas |
 | 4 | Contador de minutos diarios con meta + voz Orpheus opcional (de pago) | ✅ compila + pruebas automáticas |
 | Extra | **⭐ Mis palabras**: di "guarda la palabra …" y se guarda con su significado; el tutor las practica contigo | ✅ compila + pruebas automáticas |
+| Extra | **🎧 Sistema de voz**: manos libres, comandos de voz, elegir voz del tutor, correcciones habladas | ✅ compila + pruebas automáticas |
 
-> ⚠️ Todo fue desarrollado y probado **sin celular** (71 pruebas automáticas en la JVM). Falta la prueba manual en un dispositivo real: ver la lista de abajo.
+> ⚠️ Todo fue desarrollado y probado **sin celular** (107 pruebas automáticas en la JVM). Falta la prueba manual en un dispositivo real: ver la lista de abajo.
 
 ## Estructura
 
@@ -23,9 +24,13 @@ app/src/main/java/com/englishtutor/app/
 ├── audio/
 │   ├── Voice.kt                  # Interfaces VoiceRecorder y TutorVoice (permiten fakes en tests)
 │   ├── AudioRecorder.kt          # MediaRecorder → cache/turn.m4a
-│   ├── Speaker.kt                # Voz gratis de Android (TextToSpeech), con velocidad
+│   ├── Speaker.kt                # Voz de Android: voces en inglés instaladas, voz elegida, velocidad y español
 │   ├── OrpheusVoice.kt           # Voz Groq Orpheus (divide el texto en trozos de ≤200 caracteres)
 │   └── AudioPlayer.kt            # Reproduce los WAV de Orpheus
+├── voice/
+│   ├── SilenceDetector.kt        # Manos libres: detecta cuándo empiezas y terminas de hablar (por volumen)
+│   ├── VoiceCommands.kt          # Comandos de voz en inglés y español ("repeat", "más lento"...)
+│   └── CorrectionSpeech.kt       # Arma la lectura de correcciones: español + frase correcta en inglés
 ├── data/
 │   ├── TutorRepository.kt        # Groq (transcribir, chat, voz) + Room; reintento 429; errores en español
 │   ├── TutorPrompt.kt            # System prompt: nivel + escenario + errores a repasar
@@ -50,7 +55,7 @@ app/src/test/java/com/englishtutor/app/   # Pruebas automáticas (ver abajo)
 ## Configuración
 
 ### Opción A: instalar el APK (sin PC)
-1. Copia `EnglishTutor-1.0.apk` al celular y ábrelo. Android pedirá permitir **"Instalar apps desconocidas"** para la app con que lo abriste (Archivos, Drive, etc.).
+1. Copia `EnglishTutor-1.1.apk` al celular y ábrelo. Android pedirá permitir **"Instalar apps desconocidas"** para la app con que lo abriste (Archivos, Drive, etc.).
 2. Abre la app → **Ajustes → API key de Groq** → pega tu key (créala gratis en https://console.groq.com/keys) → **Guardar**.
 3. Vuelve a **Conversar**: el aviso 🔑 desaparece y ya puedes hablar.
 
@@ -78,6 +83,33 @@ Al iniciar cada sesión, el tutor recibe tus 5 palabras menos repasadas, las usa
 
 Cómo funciona: el contrato JSON del tutor tiene un campo extra `saved_words` (mismo formato que `new_vocab`). Se detecta con el LLM y no con una frase exacta, porque Whisper está configurado en inglés y puede transcribir "guarda la palabra" de forma imperfecta.
 
+## 🎧 Sistema de voz
+
+**Manos libres** (interruptor 🎧 sobre el micrófono, en Conversar)
+- La app te escucha sola: detecta cuando empiezas a hablar y, tras un silencio (1,5 s por defecto), envía tu turno, el tutor responde y vuelve a escucharte. No hay que tocar nada.
+- El botón crece con el volumen de tu voz (así sabes que te oye). Tócalo para **pausar**.
+- La pantalla no se apaga mientras está activo (no funciona con la pantalla bloqueada).
+- Mientras el tutor habla no te escucha (para no grabar su propia voz).
+- Si algo falla (sin internet, límite de Groq), se pausa solo para no repetir el error en bucle.
+- Se ajusta en **Ajustes → Manos libres**: sensibilidad del micrófono (baja/media/alta) y silencio para terminar tu turno (1–3 s).
+
+**Comandos de voz** (funcionan en los dos modos; se dicen solos, como frase completa)
+
+| Di… | Hace |
+|---|---|
+| "repeat", "say that again", "repite", "otra vez" | Repite lo último del tutor |
+| "slower", "slow down", "más lento", "más despacio" | Baja la velocidad 0,2x (mín. 0,5x), la guarda y repite |
+| "faster", "más rápido" | Sube la velocidad 0,2x (máx. 1,5x) |
+| "explain in Spanish", "explícame", "en español" | Lee en español las correcciones de tu último mensaje |
+| "new session", "start over", "nueva sesión" | Empieza una sesión nueva |
+| "pause", "stop listening", "pausa" | Pausa el modo manos libres |
+
+Una frase normal ("I want to repeat the course") nunca se toma como comando. Los comandos no se envían al tutor ni se guardan en el historial.
+
+**Elegir la voz del tutor** (Ajustes → Voz del tutor): lista de voces en inglés instaladas en el celular (EE.UU., Reino Unido, Australia…), velocidad, y botón **▶ Probar voz**. Para tener más voces: Ajustes del celular → Sistema → Idiomas → Salida de texto a voz.
+
+**Correcciones habladas** (Ajustes → Correcciones habladas, activado por defecto): antes de la respuesta del tutor se oye *"Corrección. Mejor di:"* (español) + la frase correcta (en inglés, para oír la pronunciación) + la explicación (español). Así lo último que oyes es la pregunta del tutor. Necesita una voz en español en el celular (usa español de Chile si existe).
+
 ## Pruebas automáticas (sin celular)
 
 ```powershell
@@ -92,9 +124,12 @@ En Android Studio: clic derecho en `app/src/test` → **Run 'Tests in…'**. Rep
 | `TutorRepositoryPersistenceTest` | Room en memoria: turno completo, vocabulario sin duplicados, repasadas, errores frecuentes agrupados, borrado en cascada, minutos practicados, orden del historial, Mis palabras | 12 |
 | `ConversationViewModelTest` | Flujo completo con micrófono/voces falsas: estados, correcciones, guardado, escenario, modelo y nivel de ajustes, grabación corta, transcripción vacía, error y recuperación, Orpheus y su respaldo, nueva sesión, repaso de errores, contador diario, "guarda la palabra", palabras difíciles en el prompt, aviso de API key | 17 |
 | `VocabViewModelTest` | Agregar palabra a mano (éxito y error), separar Mis palabras / Del tutor, estrella | 3 |
-| `ComposeUiTest` | Pantallas dibujadas con Robolectric: tarjeta que se expande, inicio (escenarios, repaso, progreso), chat con correcciones y error, ajustes, Mis palabras | 6 |
+| `HandsFreeAndVoiceCommandsTest` | Manos libres (escucha, responde y vuelve a escuchar; silencio largo; error; micrófono ocupado; activarlo mientras el tutor habla), todos los comandos de voz, orden de las correcciones habladas | 16 |
+| `SettingsViewModelTest` | Botón "Probar voz" (Android, Orpheus, español, error) y guardado | 4 |
+| `SilenceDetectorTest`, `VoiceCommandsTest`, `CorrectionSpeechTest` | Detector de silencio, comandos en inglés/español (y que frases normales no lo sean), segmentos de corrección | 12 |
+| `ComposeUiTest` | Pantallas dibujadas con Robolectric: tarjeta que se expande, inicio (escenarios, repaso, progreso), chat con correcciones y error, ajustes (voz, correcciones, sensibilidad), Mis palabras, interruptor y botón de manos libres | 9 |
 | `MigrationTest` | Actualizar la base de datos v1 → v2 conserva los datos | 1 |
-| `SettingsRepositoryTest` | DataStore: valores por defecto, guardar/leer, valores inválidos, prioridad de la API key | 4 |
+| `SettingsRepositoryTest` | DataStore: valores por defecto, guardar/leer, valores inválidos, prioridad de la API key, ajustes de voz | 5 |
 | `TutorPromptTest`, `TextChunkerTest` | System prompt y división de texto | 11 |
 
 > El diálogo "Agregar palabra" no tiene prueba de pantalla: en Robolectric, cualquier `AlertDialog` de Material 3 con un campo de texto se queda esperando para siempre (lo comprobé con un ejemplo mínimo, sin código de la app). Su lógica sí está probada en `VocabViewModelTest`; pruébalo a mano en el celular.
@@ -127,6 +162,14 @@ Filtra Logcat por el tag **`Tutor`** (verás `Whisper: "..."` y `LLM raw: {...}`
 - [ ] Botón **+** → escribe *"thorough"* → aparece con significado y ejemplo. Prueba también una palabra mal escrita.
 - [ ] En "Del tutor", toca ☆ → la palabra pasa a Mis palabras. Toca ⭐ → vuelve.
 - [ ] Nueva sesión → la tarjeta de repaso muestra "⭐ Palabras para usar" y el tutor las usa.
+
+**🎧 Sistema de voz**
+- [ ] Activa 🎧 Manos libres → "👂 Te escucho…". Habla sin tocar nada: al callarte ~1,5 s se envía, el tutor responde y vuelve a escuchar. El botón crece al hablar.
+- [ ] Si te corta antes de terminar, sube el silencio en Ajustes; si no te oye, sube la sensibilidad.
+- [ ] Di "repeat", "slower", "faster", "explain in Spanish", "new session", "pause": cada uno hace lo de la tabla y aparece "🎙️ Comando: …".
+- [ ] Ajustes → Voz del tutor → elige otra voz → ▶ Probar voz.
+- [ ] Con correcciones habladas activas, di una frase con error: oyes la corrección (español + inglés) y después la respuesta.
+- [ ] Con manos libres la pantalla no se apaga.
 
 **Ajustes y Fase 4**
 - [ ] Cambiar nivel, modelo (`openai/gpt-oss-120b`) y velocidad de voz → se nota en la siguiente respuesta.

@@ -35,6 +35,8 @@ class AudioRecorder(private val context: Context) : VoiceRecorder {
         startedAt = System.currentTimeMillis()
     }
 
+    override fun amplitude(): Int = runCatching { recorder?.maxAmplitude ?: 0 }.getOrDefault(0)
+
     /** Detiene la grabación. Devuelve null si fue demasiado corta o falló. */
     override fun stop(): File? {
         val duration = System.currentTimeMillis() - startedAt

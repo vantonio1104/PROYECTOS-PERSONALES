@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,12 +16,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,9 +38,11 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -46,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -72,6 +79,7 @@ fun ConversationScreen(vm: ConversationViewModel) {
         onReleaseMic = vm::onReleaseMic,
         onDismissError = vm::dismissError,
         onDismissNotice = vm::dismissNotice,
+        onSetHandsFree = vm::setHandsFree,
     )
 }
 
@@ -86,8 +94,15 @@ fun ConversationContent(
     onReleaseMic: () -> Unit,
     onDismissError: () -> Unit,
     onDismissNotice: () -> Unit,
+    onSetHandsFree: (Boolean) -> Unit,
 ) {
     val listState = rememberLazyListState()
+    // En manos libres la pantalla no se apaga (para practicar sin tocar el celular)
+    val view = LocalView.current
+    DisposableEffect(state.handsFree) {
+        view.keepScreenOn = state.handsFree
+        onDispose { view.keepScreenOn = false }
+    }
     // Baja automáticamente al último mensaje
     LaunchedEffect(state.messages.size, state.messages.lastOrNull()?.corrections?.size) {
         if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
@@ -138,8 +153,10 @@ fun ConversationContent(
             state.notice?.let { Banner(it, MaterialTheme.colorScheme.secondaryContainer, onDismissNotice) }
             state.error?.let { Banner(it, MaterialTheme.colorScheme.errorContainer, onDismissError) }
 
-            StatusLabel(state.status)
-            PushToTalkButton(status = state.status, onPress = onPressMic, onRelease = onReleaseMic)
+            HandsFreeSwitch(state.handsFree, onSetHandsFree)
+            StatusLabel(state.status, state.handsFree)
+            if (state.handsFree) HandsFreeButton(state.status, state.micLevel) { onSetHandsFree(false) }
+            else PushToTalkButton(status = state.status, onPress = onPressMic, onRelease = onReleaseMic)
         }
     }
 }
@@ -187,6 +204,10 @@ private fun StartPanel(
             "💡 En cualquier momento di \"guarda la palabra …\" o \"save the word …\" y quedará en Mis palabras.",
             style = MaterialTheme.typography.bodySmall,
         )
+        Text(
+            "🎙️ Comandos de voz: \"repeat\", \"más lento\", \"más rápido\", \"explícame\", \"nueva sesión\", \"pausa\".",
+            style = MaterialTheme.typography.bodySmall,
+        )
         Button(onClick = onStart, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
             Text("Que el tutor empiece")
         }
@@ -214,14 +235,44 @@ fun ReviewCard(review: List<FrequentError>, myWords: List<String> = emptyList())
     }
 }
 
+/** Interruptor del modo manos libres (pide el permiso de micrófono si hace falta). */
 @Composable
-private fun StatusLabel(status: TutorStatus) {
+private fun HandsFreeSwitch(on: Boolean, onChange: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) onChange(true)
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = on, role = Role.Switch) { wantOn ->
+                val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                    PackageManager.PERMISSION_GRANTED
+                when {
+                    !wantOn -> onChange(false)
+                    granted -> onChange(true)
+                    else -> launcher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            }
+            .padding(top = 4.dp),
+    ) {
+        Text("🎧 Manos libres", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.size(12.dp))
+        Switch(checked = on, onCheckedChange = null)
+    }
+}
+
+@Composable
+private fun StatusLabel(status: TutorStatus, handsFree: Boolean) {
     val text = when (status) {
-        TutorStatus.Idle -> "Mantén presionado para hablar"
-        TutorStatus.Recording -> "🎙️ Grabando… suelta para enviar"
+        TutorStatus.Idle -> if (handsFree) "Manos libres activo" else "Mantén presionado para hablar"
+        TutorStatus.Listening -> "👂 Te escucho… habla cuando quieras"
+        TutorStatus.Recording -> if (handsFree) "🎙️ Grabando… haz una pausa para enviar" else "🎙️ Grabando… suelta para enviar"
         TutorStatus.Transcribing -> "Transcribiendo…"
         TutorStatus.Thinking -> "El tutor está pensando…"
-        TutorStatus.Speaking -> "🔊 Hablando… (presiona para interrumpir)"
+        TutorStatus.Speaking -> if (handsFree) "🔊 Hablando… (después te escucho)" else "🔊 Hablando… (presiona para interrumpir)"
         TutorStatus.Error -> "Intenta de nuevo"
     }
     Row(
@@ -247,6 +298,39 @@ private fun Banner(message: String, color: Color, onDismiss: (() -> Unit)?) {
         Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(message, Modifier.weight(1f).padding(vertical = 12.dp))
             if (onDismiss != null) TextButton(onClick = onDismiss) { Text("OK") }
+        }
+    }
+}
+
+/** En manos libres: el botón crece con el volumen de tu voz; tocarlo pausa el modo manos libres. */
+@Composable
+private fun HandsFreeButton(status: TutorStatus, micLevel: Float, onPause: () -> Unit) {
+    val listening = status == TutorStatus.Listening || status == TutorStatus.Recording
+    val size by animateDpAsState(
+        // La voz normal da un volumen ~0.1–0.3: lo amplificamos para que el botón "respire" al hablar
+        targetValue = if (listening) 88.dp + 32.dp * (micLevel * 3).coerceIn(0f, 1f) else 88.dp,
+        label = "micLevel",
+    )
+    val color = when (status) {
+        TutorStatus.Recording -> MaterialTheme.colorScheme.error
+        TutorStatus.Listening -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.outline
+    }
+    Box(Modifier.fillMaxWidth().height(152.dp), contentAlignment = Alignment.Center) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(color)
+                .clickable(onClickLabel = "Pausar manos libres", onClick = onPause),
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_mic),
+                contentDescription = "Pausar manos libres",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(40.dp),
+            )
         }
     }
 }

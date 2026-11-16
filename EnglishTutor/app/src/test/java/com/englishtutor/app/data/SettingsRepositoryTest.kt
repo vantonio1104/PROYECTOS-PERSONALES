@@ -54,6 +54,20 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `guarda los ajustes de voz y manos libres`() = testScope.runTest {
+        assertEquals(true, repository.settings.first().speakCorrections)
+        assertEquals(MicSensitivity.MEDIUM, repository.settings.first().micSensitivity)
+        repository.update {
+            it.copy(androidVoiceName = "en-gb-x-rjs-local", speakCorrections = false, micSensitivity = MicSensitivity.HIGH, silenceMs = 2500)
+        }
+        val s = repository.settings.first()
+        assertEquals("en-gb-x-rjs-local", s.androidVoiceName)
+        assertEquals(false, s.speakCorrections)
+        assertEquals(MicSensitivity.HIGH, s.micSensitivity)
+        assertEquals(2500, s.silenceMs)
+    }
+
+    @Test
     fun `la API key de Ajustes tiene prioridad sobre local properties`() = testScope.runTest {
         assertEquals("gsk_local", repository.settings.first().effectiveApiKey(buildKey = "gsk_local"))
         repository.update { it.copy(apiKey = "  gsk_telefono  ") }

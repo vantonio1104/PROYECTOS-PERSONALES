@@ -3,6 +3,7 @@ package com.englishtutor.app.data
 import androidx.datastore.core.DataStore
 import com.englishtutor.app.BuildConfig
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -19,6 +20,17 @@ enum class VoiceEngine(val id: String, val label: String) {
     }
 }
 
+/** Qué tan fuerte hay que hablar para que el modo manos libres te escuche (volumen 0..32767). */
+enum class MicSensitivity(val id: String, val label: String, val threshold: Int) {
+    LOW("low", "Baja (lugar ruidoso)", 3000),
+    MEDIUM("medium", "Media", 1800),
+    HIGH("high", "Alta (hablas bajito)", 900);
+
+    companion object {
+        fun fromId(id: String?): MicSensitivity = entries.firstOrNull { it.id == id } ?: MEDIUM
+    }
+}
+
 /** Todos los ajustes de la app, con sus valores por defecto. */
 data class TutorSettings(
     val llmModel: String = LLM_MODELS.first(),
@@ -30,6 +42,13 @@ data class TutorSettings(
     val orpheusVoice: String = ORPHEUS_VOICES.first(),
     /** Key de Groq ingresada en la app. Vacía = se usa GROQ_API_KEY de local.properties. */
     val apiKey: String = "",
+    /** Nombre de la voz de Android elegida (vacío = la voz en inglés por defecto del celular). */
+    val androidVoiceName: String = "",
+    /** Leer en voz alta (en español) la explicación de tus errores. */
+    val speakCorrections: Boolean = true,
+    val micSensitivity: MicSensitivity = MicSensitivity.MEDIUM,
+    /** Silencio (ms) que indica que terminaste de hablar en modo manos libres. */
+    val silenceMs: Int = 1500,
 ) {
     /** La key que realmente se usa: la de Ajustes o, si está vacía, la de local.properties. */
     fun effectiveApiKey(buildKey: String = BuildConfig.GROQ_API_KEY): String = apiKey.ifBlank { buildKey }
@@ -62,6 +81,10 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
             p[VOICE_ENGINE] = new.voiceEngine.id
             p[ORPHEUS_VOICE] = new.orpheusVoice
             p[API_KEY] = new.apiKey.trim()
+            p[ANDROID_VOICE] = new.androidVoiceName
+            p[SPEAK_CORRECTIONS] = new.speakCorrections
+            p[MIC_SENSITIVITY] = new.micSensitivity.id
+            p[SILENCE_MS] = new.silenceMs
         }
     }
 
@@ -77,6 +100,10 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
             voiceEngine = VoiceEngine.fromId(this[VOICE_ENGINE]),
             orpheusVoice = this[ORPHEUS_VOICE]?.takeIf { it in TutorSettings.ORPHEUS_VOICES } ?: defaults.orpheusVoice,
             apiKey = this[API_KEY] ?: "",
+            androidVoiceName = this[ANDROID_VOICE] ?: "",
+            speakCorrections = this[SPEAK_CORRECTIONS] ?: defaults.speakCorrections,
+            micSensitivity = MicSensitivity.fromId(this[MIC_SENSITIVITY]),
+            silenceMs = this[SILENCE_MS]?.coerceIn(800, 4000) ?: defaults.silenceMs,
         )
     }
 
@@ -89,5 +116,9 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         val VOICE_ENGINE = stringPreferencesKey("voice_engine")
         val ORPHEUS_VOICE = stringPreferencesKey("orpheus_voice")
         val API_KEY = stringPreferencesKey("groq_api_key")
+        val ANDROID_VOICE = stringPreferencesKey("android_voice")
+        val SPEAK_CORRECTIONS = booleanPreferencesKey("speak_corrections")
+        val MIC_SENSITIVITY = stringPreferencesKey("mic_sensitivity")
+        val SILENCE_MS = intPreferencesKey("silence_ms")
     }
 }
